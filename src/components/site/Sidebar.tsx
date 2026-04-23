@@ -34,7 +34,7 @@ const Sidebar = ({ onNewJob }: Props) => {
   const pct = total === 0 ? 0 : Math.round((filled / total) * 100);
 
   return (
-    <div className="flex w-full flex-col bg-gradient-to-b from-[#072465] to-[#0a1a4a]">
+    <div className="flex w-full flex-col">
       {/* Job meta card */}
       <div className="border-b border-hairline p-4">
         <div className="flex items-start justify-between gap-2">
