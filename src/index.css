@@ -15,11 +15,12 @@
     --border-color: 226 24% 22%;    /* #2a3045 */
 
     /* Brand & status */
-    --accent: 38 92% 50%;           /* #f59e0b amber */
-    --accent-foreground: 225 21% 8%;
-    --green: 142 71% 45%;           /* #22c55e */
-    --red: 0 84% 60%;               /* #ef4444 */
-    --blue: 217 91% 60%;            /* info */
+    --accent: 0 0% 100%;              /* white primary */
+    --accent-foreground: 222 87% 21%;
+    --green: 142 71% 45%;             /* #22c55e */
+    --red: 0 84% 60%;                 /* #ef4444 */
+    --blue: 217 91% 60%;              /* info */
+    --secondary-brand: 222 87% 21%;   /* #072465 dark blue */
 
     /* Text hierarchy */
     --text-primary: 225 100% 97%;   /* #f0f4ff */
@@ -33,9 +34,9 @@
     --card-foreground: 225 100% 97%;
     --popover: 225 22% 16%;
     --popover-foreground: 225 100% 97%;
-    --primary: 38 92% 50%;
-    --primary-foreground: 225 21% 8%;
-    --secondary: 225 22% 16%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 222 87% 21%;
+    --secondary: 222 87% 21%;
     --secondary-foreground: 225 100% 97%;
     --muted: 225 22% 16%;
     --muted-foreground: 220 15% 60%;
@@ -45,7 +46,7 @@
     --destructive-foreground: 225 100% 97%;
     --border: 226 24% 22%;
     --input: 226 24% 22%;
-    --ring: 38 92% 50%;
+    --ring: 0 0% 100%;
     --radius: 0.625rem;
   }
 
