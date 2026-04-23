@@ -20,11 +20,11 @@ export const mockJobs: Job[] = [
           { id: "p4", name: "Unit 1A Bedroom", x: 0.58, y: 0.32, photoUrl: placeholder("1a-bed"), capturedAt: "2026-04-21T18:02:00.000Z" },
           { id: "p5", name: "Unit 1B Living", x: 0.72, y: 0.40, photoUrl: placeholder("1b-living"), capturedAt: "2026-04-21T18:14:00.000Z" },
           { id: "p6", name: "Unit 1B Bath", x: 0.84, y: 0.30, photoUrl: placeholder("1b-bath"), capturedAt: "2026-04-21T18:22:00.000Z" },
-          { id: "p7", name: "North Stairwell", x: 0.50, y: 0.12, x: 0.50, y: 0.12 } as any,
+          { id: "p7", name: "North Stairwell", x: 0.50, y: 0.12 },
           { id: "p8", name: "Elevator Lobby", x: 0.36, y: 0.20 },
           { id: "p9", name: "Mechanical Room", x: 0.20, y: 0.30 },
           { id: "p10", name: "Roof Deck Access", x: 0.88, y: 0.78 },
-        ].map((p: any) => ({ ...p })) as any,
+        ],
       },
       {
         id: "floor-2",
