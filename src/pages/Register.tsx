@@ -76,9 +76,9 @@ export default function Register() {
             <Camera size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-display font-semibold tracking-tight text-white">
-            Apply as Worker
+            Sitedochub
           </h1>
-          <p className="text-sm text-ink-soft">Create your SiteDocHB account</p>
+          <p className="text-sm text-ink-soft">Apply as worker</p>
         </div>
 
         {errorMsg && (

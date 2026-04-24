@@ -127,10 +127,10 @@ const ShareView = () => {
       {/* Header */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-hairline bg-surface/80 backdrop-blur-md px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-accent shadow-[0_4px_16px_-4px_hsl(var(--accent)/0.6)]">
-            <div className="h-3 w-3 rounded-sm bg-base" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent shadow-[0_4px_16px_-4px_hsl(var(--accent)/0.6)]">
+            <Camera size={14} className="text-white" />
           </div>
-          <span className="font-display text-sm font-medium text-ink">SiteDocHB</span>
+          <span className="font-display text-sm font-semibold tracking-tight text-white">Sitedochub</span>
           <span className="rounded-full border border-hairline px-2 py-0.5 text-[10px] text-ink-secondary">Read-only</span>
         </div>
         <div className="text-xs text-ink-secondary font-mono-data">
@@ -203,7 +203,7 @@ const ShareView = () => {
 
       {/* Footer */}
       <footer className="border-t border-hairline py-4 text-center text-[11px] text-ink-muted">
-        SiteDocHB — Halsell Builders — Read-only view
+        Sitedochub — Halsell Builders — Read-only view
       </footer>
 
       {/* 360° viewer */}

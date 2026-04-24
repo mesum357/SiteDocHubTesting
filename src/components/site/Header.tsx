@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle } from "lucide-react";
+import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera } from "lucide-react";
 import { useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { flushUploadQueue } from "@/lib/syncEngine";
@@ -37,11 +37,11 @@ const Header = ({ onNewJob, onShare }: Props) => {
     <header className="glass sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-hairline px-3 md:px-5">
       {/* Brand */}
       <div className="flex items-center gap-2.5">
-        <div className="grid h-7 w-7 place-items-center rounded-md bg-accent shadow-[0_4px_16px_-4px_hsl(var(--accent)/0.6)]">
-          <div className="h-3 w-3 rounded-sm bg-base" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-base font-bold shadow-lg shadow-accent/20">
+          <Camera size={16} className="text-white" />
         </div>
-        <span className="font-display text-sm md:text-base font-medium tracking-tight text-ink">
-          SiteDocHB
+        <span className="font-display text-sm md:text-base font-semibold tracking-tight text-white">
+          Sitedochub
         </span>
       </div>
 

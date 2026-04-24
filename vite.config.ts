@@ -76,8 +76,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "SiteDocHB",
-        short_name: "SiteDocHB",
+        name: "Sitedochub",
+        short_name: "Sitedochub",
         description:
           "360° job site photo documentation — walk, pin, capture.",
         theme_color: "#0f1117",

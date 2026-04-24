@@ -50,7 +50,7 @@ export default function Login() {
             <Camera size={24} className="text-white" />
           </div>
           <h1 className="text-2xl font-display font-semibold tracking-tight text-white">
-            SiteDocHB
+            Sitedochub
           </h1>
           <p className="text-sm text-ink-soft">Sign in to your account</p>
         </div>
