@@ -130,7 +130,7 @@ const ShareView = () => {
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent shadow-[0_4px_16px_-4px_hsl(var(--accent)/0.6)]">
             <Camera size={14} className="text-white" />
           </div>
-          <span className="font-display text-sm font-semibold tracking-tight text-white">Sitedochub</span>
+          <span className="font-display text-sm font-semibold tracking-tight !text-white">Sitedochub</span>
           <span className="rounded-full border border-hairline px-2 py-0.5 text-[10px] text-ink-secondary">Read-only</span>
         </div>
         <div className="text-xs text-ink-secondary font-mono-data">

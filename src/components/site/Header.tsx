@@ -40,7 +40,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-base font-bold shadow-lg shadow-accent/20">
           <Camera size={16} className="text-white" />
         </div>
-        <span className="font-display text-sm md:text-base font-semibold tracking-tight text-white">
+        <span className="font-display text-sm md:text-base font-semibold tracking-tight !text-white">
           Sitedochub
         </span>
       </div>
