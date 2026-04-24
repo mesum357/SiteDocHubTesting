@@ -1,7 +1,21 @@
 import { useState } from "react";
-import { Pencil, Plus, Camera } from "lucide-react";
+import { Pencil, Plus, Camera, Check, FileUp, Trash2 } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { canPerform } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface Props { onNewJob: () => void }
 
@@ -22,16 +36,51 @@ const Sidebar = ({ onNewJob }: Props) => {
   const selectedPinId = useAppStore((s) => s.selectedPinId);
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const placementMode = useAppStore((s) => s.placementMode);
+  const removeFloor = useAppStore((s) => s.removeFloor);
+  const removeJob = useAppStore((s) => s.removeJob);
+  const role = useAuthStore((s) => s.role);
 
   const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState(job.name);
-  const [descDraft, setDescDraft] = useState(job.description);
+  const [nameDraft, setNameDraft] = useState(job?.name ?? "");
+  const [descDraft, setDescDraft] = useState(job?.description ?? "");
   const [addingFloor, setAddingFloor] = useState(false);
   const [floorDraft, setFloorDraft] = useState("");
+
+  // Empty state — no jobs loaded yet
+  if (!job) {
+    return (
+      <div className="flex w-full flex-col items-center justify-center p-6 text-center">
+        <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
+          <Plus className="h-5 w-5" />
+        </div>
+        <p className="text-sm font-display text-ink">No jobs yet</p>
+        <p className="mt-1 text-xs text-ink-secondary">Create your first photo-walk job to get started.</p>
+        {canPerform(role, "CREATE_JOB") && (
+          <button
+            onClick={onNewJob}
+            className="mt-4 flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-display text-accent-foreground lift-on-hover"
+          >
+            <Plus className="h-4 w-4" /> New Job
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const filled = floor?.pins.filter((p) => p.photoUrl).length ?? 0;
   const total = floor?.pins.length ?? 0;
   const pct = total === 0 ? 0 : Math.round((filled / total) * 100);
+
+  const handleDeleteFloor = (floorId: string, floorName: string) => {
+    removeFloor(job.id, floorId);
+    toast.success(`Floor "${floorName}" deleted`);
+  };
+
+  const handleDeleteJob = () => {
+    const jobName = job.name;
+    removeJob(job.id);
+    toast.success(`Job "${jobName}" deleted`);
+  };
 
   return (
     <div className="flex w-full flex-col">
@@ -50,13 +99,41 @@ const Sidebar = ({ onNewJob }: Props) => {
           ) : (
             <h2 className="font-display text-base font-medium leading-tight text-ink">{job.name}</h2>
           )}
-          <button
-            onClick={() => setEditingName((v) => !v)}
-            aria-label="Edit job name"
-            className="grid h-6 w-6 place-items-center rounded text-ink-secondary transition-colors hover:text-accent"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+          {canPerform(role, "EDIT_JOB") && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setEditingName((v) => !v)}
+                aria-label="Edit job name"
+                className="grid h-6 w-6 place-items-center rounded text-ink-secondary transition-colors hover:text-accent"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    aria-label="Delete job"
+                    className="grid h-6 w-6 place-items-center rounded text-ink-secondary transition-colors hover:text-red-500"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete job "{job.name}"?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete this job, all {job.floors.length} floor(s), and all associated pins and photos. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteJob} className="bg-red-600 hover:bg-red-700">
+                      Delete Job
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </div>
         <div className="mt-1 font-mono-data text-[11px] text-ink-secondary">
           Created {new Date(job.createdAt).toLocaleDateString()}
@@ -65,8 +142,9 @@ const Sidebar = ({ onNewJob }: Props) => {
           value={descDraft}
           onChange={(e) => setDescDraft(e.target.value)}
           onBlur={() => updateJobDescription(job.id, descDraft.trim())}
+          readOnly={!canPerform(role, "EDIT_JOB")}
           rows={2}
-          className="mt-3 w-full resize-none rounded-md border border-hairline bg-elevated px-2 py-1.5 text-xs text-ink-secondary outline-none transition-colors focus:border-accent"
+          className="mt-3 w-full resize-none rounded-md border border-hairline bg-elevated px-2 py-1.5 text-xs text-ink-secondary outline-none transition-colors focus:border-accent disabled:opacity-50"
         />
 
         {/* Progress */}
@@ -88,38 +166,73 @@ const Sidebar = ({ onNewJob }: Props) => {
       <div className="border-b border-hairline px-3 py-2">
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
           {job.floors.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setActiveFloor(f.id)}
-              className={cn(
-                "relative whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                f.id === floor?.id
-                  ? "bg-accent-soft text-accent"
-                  : "text-ink-secondary hover:bg-elevated hover:text-ink",
+            <div key={f.id} className="group relative flex items-center">
+              <button
+                onClick={() => setActiveFloor(f.id)}
+                className={cn(
+                  "relative flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  f.id === floor?.id
+                    ? "bg-accent-soft text-accent"
+                    : "text-ink-secondary hover:bg-elevated hover:text-ink",
+                )}
+              >
+                {f.name}
+                {f.pdfUrl ? (
+                  <Check className="h-3 w-3 text-ok" />
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="No floor plan uploaded" />
+                )}
+                {f.id === floor?.id && <span className="absolute inset-x-2 -bottom-0.5 h-[2px] rounded-full bg-accent" />}
+              </button>
+              {/* Delete floor button — visible on hover, only if more than 1 floor */}
+              {job.floors.length > 1 && canPerform(role, "DELETE_FLOOR") && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      aria-label={`Delete floor ${f.name}`}
+                      className="ml-0.5 grid h-5 w-5 place-items-center rounded-full text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete floor "{f.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete this floor and its {f.pins.length} pin(s). This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDeleteFloor(f.id, f.name)} className="bg-red-600 hover:bg-red-700">
+                        Delete Floor
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
-            >
-              {f.name}
-              {f.id === floor?.id && <span className="absolute inset-x-2 -bottom-0.5 h-[2px] rounded-full bg-accent" />}
-            </button>
+            </div>
           ))}
-          {addingFloor ? (
-            <input
-              autoFocus
-              value={floorDraft}
-              onChange={(e) => setFloorDraft(e.target.value)}
-              onBlur={() => { if (floorDraft.trim()) addFloor(job.id, floorDraft.trim()); setAddingFloor(false); setFloorDraft(""); }}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-              placeholder="Floor name"
-              className="w-24 rounded-full border border-accent bg-elevated px-2 py-1 text-xs outline-none"
-            />
-          ) : (
-            <button
-              onClick={() => setAddingFloor(true)}
-              aria-label="Add floor"
-              className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary transition-colors hover:bg-elevated hover:text-accent"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+          {canPerform(role, "CREATE_FLOOR") && (
+            addingFloor ? (
+              <input
+                autoFocus
+                value={floorDraft}
+                onChange={(e) => setFloorDraft(e.target.value)}
+                onBlur={() => { if (floorDraft.trim()) addFloor(job.id, floorDraft.trim()); setAddingFloor(false); setFloorDraft(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                placeholder="Floor name"
+                className="w-24 rounded-full border border-accent bg-elevated px-2 py-1 text-xs outline-none"
+              />
+            ) : (
+              <button
+                onClick={() => setAddingFloor(true)}
+                aria-label="Add floor"
+                className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary transition-colors hover:bg-elevated hover:text-accent"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )
           )}
         </div>
       </div>
@@ -129,9 +242,13 @@ const Sidebar = ({ onNewJob }: Props) => {
         {floor && floor.pins.length === 0 && (
           <div className="px-4 py-10 text-center">
             <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
-              <Plus className="h-4 w-4" />
+              {floor.pdfUrl ? <Plus className="h-4 w-4" /> : <FileUp className="h-4 w-4" />}
             </div>
-            <p className="text-xs text-ink-secondary">No pins yet — click the floor plan to place your first pin.</p>
+            <p className="text-xs text-ink-secondary">
+              {floor.pdfUrl
+                ? "No pins yet — click the floor plan to place your first pin."
+                : "Upload a floor plan PDF first, then you can place pins."}
+            </p>
           </div>
         )}
         <ul className="space-y-0.5">
@@ -172,19 +289,25 @@ const Sidebar = ({ onNewJob }: Props) => {
       </div>
 
       {/* Add Pin CTA */}
-      <div className="border-t border-hairline p-3">
-        <button
-          onClick={() => togglePlacement(true)}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-md border border-dashed py-2.5 text-sm font-medium transition-all",
-            placementMode
-              ? "border-accent bg-accent-soft text-accent"
-              : "border-hairline text-accent hover:border-solid hover:border-accent hover:bg-accent-soft",
-          )}
-        >
-          <Plus className="h-4 w-4" /> Place New Pin
-        </button>
-      </div>
+      {canPerform(role, "PLACE_PIN") && (
+        <div className="border-t border-hairline p-3">
+          <button
+            onClick={() => togglePlacement(true)}
+            disabled={!floor?.pdfUrl}
+            title={!floor?.pdfUrl ? "Upload a floor plan first" : undefined}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-md border border-dashed py-2.5 text-sm font-medium transition-all",
+              !floor?.pdfUrl
+                ? "border-hairline text-ink-muted cursor-not-allowed opacity-50"
+                : placementMode
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-hairline text-accent hover:border-solid hover:border-accent hover:bg-accent-soft",
+            )}
+          >
+            <Plus className="h-4 w-4" /> Place New Pin
+          </button>
+        </div>
+      )}
     </div>
   );
 };

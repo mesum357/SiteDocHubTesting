@@ -13,16 +13,16 @@ import { useAppStore } from "@/store/useAppStore";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const Index = () => {
-  const [loaded, setLoaded] = useState(false);
   const [newJobOpen, setNewJobOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const isMobile = useIsMobile();
   const placementMode = useAppStore((s) => s.placementMode);
+  const loaded = useAppStore((s) => s.loaded);
+  const loadJobs = useAppStore((s) => s.loadJobs);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoaded(true), 750);
-    return () => clearTimeout(t);
-  }, []);
+    loadJobs();
+  }, [loadJobs]);
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-base text-ink">

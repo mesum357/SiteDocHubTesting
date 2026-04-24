@@ -1,4 +1,4 @@
-export type SyncStatus = "synced" | "syncing" | "offline";
+// SyncStatus is now derived from the useSyncStatus hook (see src/hooks/useSyncStatus.ts)
 
 export interface Pin {
   id: string;
@@ -13,6 +13,7 @@ export interface Pin {
 export interface Floor {
   id: string;
   name: string;
+  pdfUrl?: string; // Supabase Storage public URL of the floor plan PDF
   pins: Pin[];
 }
 

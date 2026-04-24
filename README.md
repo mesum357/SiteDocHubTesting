@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# SiteViewPro
 
-TODO: Document your project here
+360° Job Site Photo Documentation — Walk, pin, capture.

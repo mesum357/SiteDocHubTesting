@@ -1,37 +1,142 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Minus, Plus, Maximize2 } from "lucide-react";
+import { Check, FileUp, Minus, Plus, Maximize2, Loader2 } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { canPerform } from "@/lib/permissions";
+import { usePdfRenderer } from "@/hooks/usePdfRenderer";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const FloorPlanSVG = () => (
-  // Mock floor plan rendered as SVG (PDF.js-ready: replace with <canvas> later)
-  <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-    <defs>
-      <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-        <line x1="0" y1="0" x2="0" y2="6" stroke="hsl(var(--border-color))" strokeWidth="1" />
-      </pattern>
-    </defs>
-    {/* outer walls */}
-    <rect x="60" y="60" width="880" height="580" fill="hsl(var(--bg-surface) / 0.4)" stroke="hsl(var(--text-secondary) / 0.7)" strokeWidth="3" />
-    {/* interior walls */}
-    <line x1="60" y1="280" x2="500" y2="280" stroke="hsl(var(--text-secondary) / 0.5)" strokeWidth="2" />
-    <line x1="500" y1="60" x2="500" y2="420" stroke="hsl(var(--text-secondary) / 0.5)" strokeWidth="2" />
-    <line x1="500" y1="420" x2="940" y2="420" stroke="hsl(var(--text-secondary) / 0.5)" strokeWidth="2" />
-    <line x1="240" y1="280" x2="240" y2="640" stroke="hsl(var(--text-secondary) / 0.5)" strokeWidth="2" />
-    <line x1="720" y1="60" x2="720" y2="420" stroke="hsl(var(--text-secondary) / 0.5)" strokeWidth="2" />
-    {/* hatched stairwell */}
-    <rect x="460" y="60" width="80" height="140" fill="url(#hatch)" stroke="hsl(var(--text-secondary) / 0.5)" />
-    {/* room labels */}
-    <g fill="hsl(var(--text-muted))" fontFamily="DM Mono, monospace" fontSize="11" textAnchor="middle">
-      <text x="280" y="180">UNIT 1A</text>
-      <text x="610" y="240">UNIT 1B</text>
-      <text x="380" y="500">CORRIDOR</text>
-      <text x="830" y="540">MECH</text>
-      <text x="150" y="500">LOBBY</text>
-    </g>
-  </svg>
-);
+// ─── PDF UPLOAD ZONE ────────────────────────────────────────────────────────
+interface UploadZoneProps {
+  jobId: string;
+  floorId: string;
+  floorName: string;
+}
+
+const PdfUploadZone = ({ jobId, floorId, floorName }: UploadZoneProps) => {
+  const uploadFloorPdf = useAppStore((s) => s.uploadFloorPdf);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFile = async (file: File) => {
+    if (file.type !== "application/pdf") {
+      toast.error("Please upload a PDF file");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File too large (max 50MB)");
+      return;
+    }
+
+    setUploading(true);
+    setProgress(0);
+
+    // Simulate progress (actual upload is single-shot)
+    const interval = setInterval(() => {
+      setProgress((p) => Math.min(p + 15, 85));
+    }, 200);
+
+    try {
+      await uploadFloorPdf(jobId, floorId, file);
+      clearInterval(interval);
+      setProgress(100);
+      toast.success(`Floor plan uploaded for ${floorName}`);
+    } catch (err) {
+      clearInterval(interval);
+      console.error("[SiteDocHB] Upload failed:", err);
+      toast.error("Upload failed — please try again");
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  };
+
+  return (
+    <div className="relative h-full w-full blueprint-grid grid place-items-center">
+      <div
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f) handleFile(f);
+        }}
+        onClick={() => !uploading && fileRef.current?.click()}
+        className={cn(
+          "group flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-12 transition-all cursor-pointer",
+          "w-[min(90%,480px)] aspect-[4/3]",
+          uploading
+            ? "border-accent bg-accent-soft/30 cursor-wait"
+            : dragOver
+              ? "border-accent bg-accent-soft/40 shadow-[0_0_40px_-8px_hsl(var(--accent)/0.4)] scale-[1.02]"
+              : "border-hairline hover:border-accent hover:bg-elevated/50 hover:shadow-lg",
+        )}
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="h-10 w-10 text-accent animate-spin" />
+            <div className="text-center">
+              <p className="font-display text-sm text-ink">Uploading floor plan…</p>
+              <div className="mt-3 mx-auto w-48 h-1.5 rounded-full bg-elevated overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="mt-2 font-mono-data text-[11px] text-ink-secondary">{progress}%</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={cn(
+              "grid h-16 w-16 place-items-center rounded-2xl border transition-all",
+              dragOver
+                ? "border-accent bg-accent-soft text-accent shadow-[0_0_24px_-4px_hsl(var(--accent)/0.5)]"
+                : "border-hairline bg-elevated text-ink-secondary group-hover:border-accent group-hover:text-accent",
+            )}>
+              <FileUp className="h-7 w-7" />
+            </div>
+            <div className="text-center">
+              <p className="font-display text-sm text-ink">
+                Upload Floor Plan
+              </p>
+              <p className="mt-1 text-xs text-ink-secondary">
+                Drag & drop a PDF here, or click to browse
+              </p>
+              <p className="mt-2 font-mono-data text-[10px] text-ink-muted">
+                PDF up to 50MB • First page will be used as the blueprint
+              </p>
+            </div>
+          </>
+        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,application/pdf"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = ""; // reset so same file can be re-selected
+          }}
+        />
+      </div>
+
+      {/* Floor badge */}
+      <div className="absolute left-4 bottom-4 rounded-md border border-hairline bg-elevated/80 backdrop-blur px-3 py-1.5">
+        <div className="font-display text-xs text-ink">{floorName}</div>
+        <div className="font-mono-data text-[10px] text-ink-secondary">No blueprint uploaded</div>
+      </div>
+    </div>
+  );
+};
+
+// ─── FLOOR PLAN CANVAS ─────────────────────────────────────────────────────────
 
 const FloorPlanCanvas = () => {
   const job = useActiveJob();
@@ -42,6 +147,9 @@ const FloorPlanCanvas = () => {
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const addPin = useAppStore((s) => s.addPin);
   const renamePin = useAppStore((s) => s.renamePin);
+  const role = useAuthStore((s) => s.role);
+
+  const { imageUrl: pdfImageUrl, loading: pdfLoading, error: pdfError } = usePdfRenderer(floor?.pdfUrl);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -49,7 +157,64 @@ const FloorPlanCanvas = () => {
   const [draftPin, setDraftPin] = useState<{ id: string; x: number; y: number } | null>(null);
   const [draftName, setDraftName] = useState("");
 
-  useEffect(() => { setDraftPin(null); }, [floor?.id, job.id]);
+  useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
+
+  // Empty state — no job selected
+  if (!job || !floor) {
+    return (
+      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+        <div className="text-center px-6">
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
+            <Maximize2 className="h-6 w-6" />
+          </div>
+          <p className="font-display text-sm text-ink">No floor plan loaded</p>
+          <p className="mt-1 text-xs text-ink-secondary">Create a job and select a floor to begin.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No PDF uploaded — show upload zone or empty state
+  if (!floor.pdfUrl) {
+    if (canPerform(role, "CREATE_FLOOR")) {
+      return <PdfUploadZone jobId={job.id} floorId={floor.id} floorName={floor.name} />;
+    }
+    return (
+      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+        <div className="text-center px-6">
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
+            <Maximize2 className="h-6 w-6" />
+          </div>
+          <p className="font-display text-sm text-ink">No floor plan uploaded</p>
+          <p className="mt-1 text-xs text-ink-secondary">An Office Worker needs to upload the blueprint first.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // PDF is loading
+  if (pdfLoading) {
+    return (
+      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-8 w-8 text-accent animate-spin" />
+          <p className="mt-3 font-display text-sm text-ink">Rendering floor plan…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // PDF render error
+  if (pdfError) {
+    return (
+      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+        <div className="text-center px-6">
+          <p className="font-display text-sm text-ink">Failed to render floor plan</p>
+          <p className="mt-1 text-xs text-ink-secondary">{pdfError}</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!placementMode || !floor) return;
@@ -72,7 +237,15 @@ const FloorPlanCanvas = () => {
         )}
         style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
       >
-        <FloorPlanSVG />
+        {/* Rendered PDF as background image */}
+        {pdfImageUrl && (
+          <img
+            src={pdfImageUrl}
+            alt="Floor plan"
+            className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
+            draggable={false}
+          />
+        )}
 
         {/* Pin overlay */}
         <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full pointer-events-none" preserveAspectRatio="xMidYMid meet">
@@ -98,7 +271,7 @@ const FloorPlanCanvas = () => {
                   </>
                 ) : (
                   <>
-                    <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} className={!selected ? "" : ""} />
+                    <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} />
                     <circle r="3" fill="hsl(var(--accent))" />
                     {!selected && (
                       <circle r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.4">

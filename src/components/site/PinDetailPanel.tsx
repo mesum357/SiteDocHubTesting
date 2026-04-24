@@ -1,8 +1,23 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Check, Copy, Maximize, Pencil, Upload, Wifi, X } from "lucide-react";
+import { Camera, Check, Copy, Maximize, Pencil, Trash2, Upload, X } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore, useSelectedPin } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { canPerform } from "@/lib/permissions";
+import { useInsta360 } from "@/hooks/useInsta360";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import PanoramaViewer from "./PanoramaViewer";
 
 interface Props {
   tabletOverlay?: boolean;
@@ -24,21 +39,28 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const attachPhoto = useAppStore((s) => s.attachPhoto);
   const updatePinNotes = useAppStore((s) => s.updatePinNotes);
   const selectPin = useAppStore((s) => s.selectPin);
-  const cameraConnected = useAppStore((s) => s.cameraConnected);
+  const removePin = useAppStore((s) => s.removePin);
+  const uploadPinPhoto = useAppStore((s) => s.uploadPinPhoto);
+  const role = useAuthStore((s) => s.role);
+
+  const { connected: cameraConnected, capturing: cameraCapturing, triggerCapture } = useInsta360();
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const [notesFocused, setNotesFocused] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setNameDraft(pin?.name ?? "");
     setNotesDraft(pin?.notes ?? "");
     setEditingName(false);
+    setViewerOpen(false);
   }, [pin?.id]);
 
   // Tablet overlay: only render when a pin is selected and viewport is md..lg-1
@@ -46,25 +68,48 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
 
   if (tabletOverlay && !pin) return null;
 
-  const filename = pin && floor
+  const filename = pin && floor && job
     ? `${new Date(pin.capturedAt ?? Date.now()).toISOString().slice(2,10).replace(/-/g, "-")}-${slugify(job.name)}-${slugify(pin.name)}.insp`
     : "";
 
-  const triggerCapture = () => {
-    if (!pin || !floor) return;
+  const handleCapture = async () => {
+    if (!pin || !floor || !job) return;
     setCapturing(true);
-    setTimeout(() => {
-      attachPhoto(job.id, floor.id, pin.id, `https://picsum.photos/seed/${pin.id}-${Date.now()}/600/400`);
-      setCapturing(false);
-      toast.success(`Photo saved to ${pin.name}`);
-    }, 1100);
+
+    const blob = await triggerCapture();
+    if (blob) {
+      // Upload to Supabase Storage
+      try {
+        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
+        await uploadPinPhoto(job.id, floor.id, pin.id, file);
+        toast.success(`Photo saved to ${pin.name}`);
+      } catch {
+        toast.error("Failed to upload captured photo");
+      }
+    } else {
+      // Camera not available — show error
+      toast.error("Camera capture failed — check connection");
+    }
+    setCapturing(false);
   };
 
-  const handleFile = (file: File) => {
-    if (!pin || !floor) return;
-    const url = URL.createObjectURL(file);
-    attachPhoto(job.id, floor.id, pin.id, url);
-    toast.success(`Photo saved to ${pin.name}`);
+  const handleFile = async (file: File) => {
+    if (!pin || !floor || !job) return;
+    setUploading(true);
+    try {
+      await uploadPinPhoto(job.id, floor.id, pin.id, file);
+      toast.success(`Photo uploaded to ${pin.name}`);
+    } catch {
+      toast.error("Upload failed — please try again");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePin = () => {
+    if (!pin || !floor || !job) return;
+    removePin(job.id, floor.id, pin.id);
+    toast.success(`Pin "${pin.name}" deleted`);
   };
 
   const empty = !pin;
@@ -86,14 +131,16 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                   autoFocus
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
-                  onBlur={() => { renamePin(job.id, floor!.id, pin!.id, nameDraft.trim() || pin!.name); setEditingName(false); }}
+                  onBlur={() => { if (job) renamePin(job.id, floor!.id, pin!.id, nameDraft.trim() || pin!.name); setEditingName(false); }}
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   className="w-full rounded-md border border-accent bg-elevated px-2 py-1 font-display text-base text-ink outline-none"
                 />
               ) : (
-                <button onClick={() => setEditingName(true)} className="group flex items-center gap-2 text-left">
+                <button onClick={() => { if (canPerform(role, "DELETE_PIN")) setEditingName(true); }} className="group flex items-center gap-2 text-left">
                   <span className="font-display text-base text-ink">{pin!.name}</span>
-                  <Pencil className="h-3.5 w-3.5 text-ink-secondary opacity-0 transition-opacity group-hover:opacity-100" />
+                  {canPerform(role, "DELETE_PIN") && (
+                    <Pencil className="h-3.5 w-3.5 text-ink-secondary opacity-0 transition-opacity group-hover:opacity-100" />
+                  )}
                 </button>
               )}
               <div className="mt-2">
@@ -122,7 +169,10 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
             <div className="group relative overflow-hidden rounded-lg border border-hairline">
               <img src={pin!.photoUrl} alt={pin!.name} className="h-48 w-full object-cover" />
               <div className="absolute inset-0 grid place-items-center bg-base/70 opacity-0 transition-opacity group-hover:opacity-100">
-                <button className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground" onClick={() => toast.info("360° viewer coming soon")}>
+                <button
+                  className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
+                  onClick={() => setViewerOpen(true)}
+                >
                   <Maximize className="h-3.5 w-3.5" /> View Full 360°
                 </button>
               </div>
@@ -148,37 +198,48 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
           )}
 
           {/* Camera CTA */}
-          <button
-            onClick={triggerCapture}
-            disabled={capturing}
-            className={cn(
-              "lift-on-hover flex h-12 w-full items-center justify-center gap-2 rounded-md font-display text-sm transition-all active:scale-[0.98]",
-              cameraConnected
-                ? "bg-accent text-accent-foreground"
-                : "border border-accent bg-transparent text-accent hover:bg-accent-soft",
-              capturing && "opacity-80",
-            )}
-            title={cameraConnected ? "" : "Connect to INSTA360_XXXXXX WiFi first"}
-          >
-            {capturing ? (
-              <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Triggering shutter…</>
-            ) : (
-              <>📷 Capture with Insta360</>
-            )}
-          </button>
-
-          {/* Camera status */}
-          <div className="flex items-center justify-between rounded-md border border-hairline bg-elevated px-3 py-2 text-[11px]">
-            <div className="flex items-center gap-2">
-              <Wifi className={cn("h-3.5 w-3.5", cameraConnected ? "text-ok" : "text-accent")} />
-              <span className="text-ink-secondary">
-                {cameraConnected ? "Camera connected" : "Connect to camera WiFi in Settings"}
+          <div>
+            <button
+              onClick={handleCapture}
+              disabled={capturing || cameraCapturing}
+              className={cn(
+                "lift-on-hover flex h-12 w-full items-center justify-center gap-2 rounded-md font-display text-sm transition-all active:scale-[0.98]",
+                cameraConnected
+                  ? "bg-accent text-accent-foreground"
+                  : "border border-accent bg-transparent text-accent hover:bg-accent-soft",
+                (capturing || cameraCapturing) && "opacity-80",
+              )}
+              title={cameraConnected ? "" : "Connect to INSTA360_XXXXXX WiFi first"}
+            >
+              {(capturing || cameraCapturing) ? (
+                <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Triggering shutter…</>
+              ) : (
+                <>📷 Capture with Insta360</>
+              )}
+            </button>
+            {/* Connection status label */}
+            <div className="mt-1.5 flex items-center justify-center gap-1.5">
+              <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-red-500")} />
+              <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-red-500")}>
+                {cameraConnected ? "Connected" : "Disconnected"}
               </span>
             </div>
-            <button onClick={() => fileRef.current?.click()} className="font-medium text-accent hover:underline">
-              <Upload className="mr-1 inline h-3 w-3" /> Upload
+          </div>
+
+          {/* Upload button */}
+          <div className="flex items-center justify-between rounded-md border border-hairline bg-elevated px-3 py-2 text-[11px]">
+            <div className="flex items-center gap-2">
+              <Upload className="h-3.5 w-3.5 text-accent" />
+              <span className="text-ink-secondary">Upload 360° image</span>
+            </div>
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="font-medium text-accent hover:underline"
+            >
+              {uploading ? "Uploading…" : "Browse"}
             </button>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
           </div>
 
           {/* Notes */}
@@ -189,7 +250,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                 value={notesDraft}
                 onChange={(e) => setNotesDraft(e.target.value)}
                 onFocus={() => setNotesFocused(true)}
-                onBlur={() => { setNotesFocused(false); updatePinNotes(job.id, floor!.id, pin!.id, notesDraft); }}
+                onBlur={() => { setNotesFocused(false); if (job) updatePinNotes(job.id, floor!.id, pin!.id, notesDraft); }}
                 rows={4}
                 placeholder="Field notes…"
                 className={cn(
@@ -218,7 +279,41 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
               </button>
             </div>
           </div>
+
+          {/* Delete Pin */}
+          {canPerform(role, "DELETE_PIN") && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="flex w-full items-center justify-center gap-2 rounded-md border border-red-500/30 py-2 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10">
+                  <Trash2 className="h-3.5 w-3.5" /> Delete Pin
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete "{pin!.name}"?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove this pin{pin!.photoUrl ? " and its photo" : ""}. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeletePin} className="bg-red-600 hover:bg-red-700">
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
+      )}
+
+      {/* 360° Panorama Viewer */}
+      {viewerOpen && pin?.photoUrl && (
+        <PanoramaViewer
+          photoUrl={pin.photoUrl}
+          pinName={pin.name}
+          onClose={() => setViewerOpen(false)}
+        />
       )}
     </div>
   );
