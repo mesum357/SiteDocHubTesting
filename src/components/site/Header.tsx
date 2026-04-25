@@ -28,6 +28,7 @@ interface Props {
 const Header = ({ onNewJob, onShare }: Props) => {
   const job = useActiveJob();
   const jobs = useAppStore((s) => s.jobs);
+  const loadJobs = useAppStore((s) => s.loadJobs);
   const setActiveJob = useAppStore((s) => s.setActiveJob);
   const hardDeleteJob = useAppStore((s) => s.hardDeleteJob);
   const { label: syncLabel, color: syncColor, status: syncStatus } = useSyncStatus();
@@ -37,6 +38,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const { role, user, signOut } = useAuthStore();
   const navigate = useNavigate();
 
@@ -70,10 +72,30 @@ const Header = ({ onNewJob, onShare }: Props) => {
     }
   };
 
+  const handleMobileRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await loadJobs();
+      toast.success("Refreshed");
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <header className="glass sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-hairline px-3 md:px-5">
       {/* Brand */}
       <div className="flex items-center gap-2.5">
+        <button
+          onClick={handleMobileRefresh}
+          aria-label="Refresh"
+          className="mr-1 grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary transition-colors hover:border-accent hover:text-accent md:hidden"
+        >
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+        </button>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-base font-bold shadow-lg shadow-accent/20">
           <Camera size={16} className="text-white" />
         </div>
