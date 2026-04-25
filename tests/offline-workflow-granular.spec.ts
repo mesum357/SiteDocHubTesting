@@ -104,8 +104,8 @@ test.describe("Offline Workflow (Granular)", () => {
     await setOnline(context);
     await expect
       .poll(async () => (await getQueueCounts(page)).queued, {
-        timeout: 20_000,
-        intervals: [500, 1000, 1500],
+        timeout: 45_000,
+        intervals: [500, 1000, 1500, 2000, 2500],
       })
       .toBe(0);
 

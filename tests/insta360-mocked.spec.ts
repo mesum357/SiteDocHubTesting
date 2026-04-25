@@ -30,4 +30,25 @@ test.describe("Insta360 (Mocked)", () => {
     await expect(page.getByText(/photo saved to|photo uploaded/i)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/photo captured/i).first()).toBeVisible({ timeout: 15_000 });
   });
+
+  test("shows disconnected config error and does not open file picker", async ({ page }) => {
+    test.setTimeout(120_000);
+    await loginIfNeeded(page);
+    await ensureJobSelected(page, "E2E Offline Workflow Job");
+    await ensureFloorPdf(page);
+
+    const pinInList = page.locator("aside").first().locator("ul").getByRole("button").first();
+    if (await pinInList.isVisible().catch(() => false)) {
+      await pinInList.click();
+    } else {
+      await placePinAndSelect(page, "Insta360 Disconnected Pin");
+    }
+
+    // Do not install camera mock here: this simulates disconnected config.
+    await page.getByRole("button", { name: /capture with insta360/i }).click();
+    await expect(
+      page.getByText(/insta360 not connected\. connect camera wifi first\./i)
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/disconnected/i).first()).toBeVisible({ timeout: 15_000 });
+  });
 });

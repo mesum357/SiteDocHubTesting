@@ -15,7 +15,8 @@
     "test:e2e:full": "playwright test --workers=1 tests/auth-and-shell.spec.ts tests/uploads-online.spec.ts tests/insta360-mocked.spec.ts tests/offline-workflow.e2e.spec.ts tests/offline-workflow-granular.spec.ts tests/full-app-smoke.spec.ts",
     "test:prod:smoke": "node tests/prod-cors-smoke.mjs",
     "test:prod:e2e": "playwright test --config=playwright.prod.config.ts tests/prod-share-delete.spec.ts",
-    "test:fixes": "node tests/run-fix-verification.mjs"
+    "test:fixes": "node tests/run-fix-verification.mjs",
+    "test:fullapp": "node tests/run-full-app-verification.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
