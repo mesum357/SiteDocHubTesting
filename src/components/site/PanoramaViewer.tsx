@@ -87,11 +87,11 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   }, [photoUrl]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black animate-fade-up">
+    <div className="fixed inset-0 z-[120] bg-black animate-fade-up">
       <button
         onClick={onClose}
         aria-label={`Close panorama viewer for ${pinName}`}
-        className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+        className="absolute right-3 top-[max(12px,env(safe-area-inset-top))] z-[130] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
       >
         <X className="h-5 w-5" />
       </button>

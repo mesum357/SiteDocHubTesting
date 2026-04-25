@@ -152,15 +152,65 @@ const FloorPlanCanvas = () => {
   const addPin = useAppStore((s) => s.addPin);
   const role = useAuthStore((s) => s.role);
 
-  const { imageUrl: pdfImageUrl, loading: pdfLoading, error: pdfError } = usePdfRenderer(floor?.pdfUrl);
+  const {
+    imageUrl: pdfImageUrl,
+    loading: pdfLoading,
+    error: pdfError,
+    dimensions: pdfDimensions,
+  } = usePdfRenderer(floor?.pdfUrl);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [hover, setHover] = useState<string | null>(null);
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const computeContainedRect = () => {
+      const bounds = el.getBoundingClientRect();
+      const cw = Math.max(bounds.width, 1);
+      const ch = Math.max(bounds.height, 1);
+      const iw = Math.max(pdfDimensions.width, 1);
+      const ih = Math.max(pdfDimensions.height, 1);
+
+      const containerAspect = cw / ch;
+      const imageAspect = iw / ih;
+
+      let width = cw;
+      let height = ch;
+      let left = 0;
+      let top = 0;
+
+      if (imageAspect > containerAspect) {
+        width = cw;
+        height = cw / imageAspect;
+        top = (ch - height) / 2;
+      } else {
+        height = ch;
+        width = ch * imageAspect;
+        left = (cw - width) / 2;
+      }
+
+      setImageRect({
+        left,
+        top,
+        width: Math.max(width, 1),
+        height: Math.max(height, 1),
+      });
+    };
+
+    computeContainedRect();
+    const ro = new ResizeObserver(() => computeContainedRect());
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, [pdfDimensions.width, pdfDimensions.height, zoom]);
 
   // Empty state — no job selected
   if (!job || !floor) {
@@ -222,10 +272,19 @@ const FloorPlanCanvas = () => {
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!placementMode || !floor) return;
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    
-    // Check if we are creating a draft pin or immediately saving it
+    const localX = e.clientX - rect.left;
+    const localY = e.clientY - rect.top;
+
+    // Map click against the actual visible PDF area (object-contain), not full container.
+    const px = localX - imageRect.left;
+    const py = localY - imageRect.top;
+    if (px < 0 || py < 0 || px > imageRect.width || py > imageRect.height) {
+      return;
+    }
+
+    const x = px / imageRect.width;
+    const y = py / imageRect.height;
+
     setDraftPin({ x, y });
   };
 
@@ -261,16 +320,30 @@ const FloorPlanCanvas = () => {
           </div>
         ) : null}
 
-        {/* Pin overlay */}
-        <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full pointer-events-none" preserveAspectRatio="xMidYMid meet">
+        {/* Pin overlay aligned to the actual rendered PDF rectangle */}
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: `${imageRect.left}px`,
+            top: `${imageRect.top}px`,
+            width: `${imageRect.width}px`,
+            height: `${imageRect.height}px`,
+          }}
+        >
+          <svg
+            viewBox={`0 0 ${pdfDimensions.width} ${pdfDimensions.height}`}
+            className="h-full w-full"
+            preserveAspectRatio="none"
+          >
           {floor?.pins.map((p) => {
-            const cx = p.x * 1000;
-            const cy = p.y * 700;
+            const cx = p.x * pdfDimensions.width;
+            const cy = p.y * pdfDimensions.height;
             const filled = !!p.photoUrl;
             const selected = p.id === selectedPinId;
             return (
               <g
                 key={p.id}
+                data-testid={`floor-map-marker-${p.id}`}
                 transform={`translate(${cx} ${cy})`}
                 className="pointer-events-auto cursor-pointer"
                 onMouseEnter={() => setHover(p.id)}
@@ -298,7 +371,8 @@ const FloorPlanCanvas = () => {
               </g>
             );
           })}
-        </svg>
+          </svg>
+        </div>
 
         {/* Hover tooltip */}
         {hover && floor && (() => {
@@ -307,7 +381,10 @@ const FloorPlanCanvas = () => {
           return (
             <div
               className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] rounded-md border border-hairline bg-elevated px-2.5 py-1 text-xs text-ink shadow-lg animate-fade-up"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              style={{
+                left: `${imageRect.left + p.x * imageRect.width}px`,
+                top: `${imageRect.top + p.y * imageRect.height}px`,
+              }}
             >
               <div className="font-display">{p.name}</div>
               <div className="font-mono-data text-[10px] text-ink-secondary">{p.photoUrl ? "1 photo" : "no photo"}</div>
@@ -319,7 +396,10 @@ const FloorPlanCanvas = () => {
         {draftPin && (
           <div
             className="absolute z-20 -translate-x-1/2 translate-y-3 rounded-lg border border-accent bg-elevated p-2 shadow-2xl animate-scale-in"
-            style={{ left: `${draftPin.x * 100}%`, top: `${draftPin.y * 100}%` }}
+            style={{
+              left: `${imageRect.left + draftPin.x * imageRect.width}px`,
+              top: `${imageRect.top + draftPin.y * imageRect.height}px`,
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <input

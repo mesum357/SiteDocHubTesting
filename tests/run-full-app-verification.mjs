@@ -49,6 +49,8 @@ async function main() {
         "--config=playwright.config.ts",
         "--workers=1",
         "tests/auth-and-shell.spec.ts",
+        "tests/security-page.spec.ts",
+        "tests/pin-placement-consistency.spec.ts",
         "tests/uploads-online.spec.ts",
         "tests/insta360-mocked.spec.ts",
         "tests/export-html.spec.ts",

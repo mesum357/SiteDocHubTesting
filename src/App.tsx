@@ -8,6 +8,7 @@ import ShareView from "./pages/ShareView.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
 import AdminUsers from "./pages/AdminUsers.tsx";
+import Security from "./pages/Security.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute.tsx";
 
@@ -30,6 +31,7 @@ const AppContent = () => {
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Index />} />
+          <Route path="/security" element={<Security />} />
         </Route>
         
         {/* Admin Only Route */}

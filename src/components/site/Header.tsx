@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera, Trash2 } from "lucide-react";
+import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera, Trash2, Shield } from "lucide-react";
 import { useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { flushUploadQueue } from "@/lib/syncEngine";
@@ -215,6 +215,18 @@ const Header = ({ onNewJob, onShare }: Props) => {
                     <User className="h-4 w-4 text-ink-secondary" /> Users
                   </button>
                 )}
+                <button
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent-soft",
+                    canPerform(role, "MANAGE_USERS") && "border-t border-hairline"
+                  )}
+                  onClick={() => {
+                    setUserOpen(false);
+                    navigate("/security");
+                  }}
+                >
+                  <Shield className="h-4 w-4 text-ink-secondary" /> Security
+                </button>
                 <button className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2 text-sm hover:bg-accent-soft" onClick={async () => { setUserOpen(false); await signOut(); navigate("/login"); toast.info("Signed out"); }}>
                   Sign out
                 </button>

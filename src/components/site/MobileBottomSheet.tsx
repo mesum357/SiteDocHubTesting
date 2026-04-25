@@ -4,7 +4,7 @@ import { useAppStore, useActiveFloor } from "@/store/useAppStore";
 import PinDetailPanel from "./PinDetailPanel";
 import { cn } from "@/lib/utils";
 
-const COLLAPSED_HEIGHT = "14px"; // handle-only
+const COLLAPSED_HEIGHT = "44px"; // larger grab area for easier swipe
 const EXPANDED_HEIGHT = "70vh";
 
 const MobileBottomSheet = () => {
@@ -40,7 +40,7 @@ const MobileBottomSheet = () => {
         onPointerDown={(e) => dragControls.start(e)}
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className="h-1 w-8 rounded-full bg-hairline" />
+        <div className="h-1.5 w-12 rounded-full bg-hairline" />
       </div>
 
       {expanded && showPin ? (
