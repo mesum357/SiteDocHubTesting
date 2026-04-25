@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { motion, useMotionValue, animate } from "framer-motion";
+import { motion, useDragControls } from "framer-motion";
 import { useAppStore, useActiveFloor } from "@/store/useAppStore";
 import PinDetailPanel from "./PinDetailPanel";
 import { cn } from "@/lib/utils";
 
-const SNAP_COLLAPSED = 0.7; // 30vh visible
-const SNAP_EXPANDED = 0.3;  // 70vh visible
+const COLLAPSED_HEIGHT = "14px"; // handle-only
+const EXPANDED_HEIGHT = "70vh";
 
 const MobileBottomSheet = () => {
   const floor = useActiveFloor();
@@ -14,44 +14,40 @@ const MobileBottomSheet = () => {
   const togglePlacement = useAppStore((s) => s.togglePlacement);
 
   const [expanded, setExpanded] = useState(false);
-  const y = useMotionValue(0);
-
-  const snapTo = (toExpanded: boolean) => {
-    const vh = window.innerHeight;
-    const target = toExpanded ? vh * SNAP_EXPANDED : vh * SNAP_COLLAPSED;
-    animate(y, target - vh * (expanded ? SNAP_EXPANDED : SNAP_COLLAPSED), { type: "spring", stiffness: 280, damping: 28 });
-    setExpanded(toExpanded);
-  };
+  const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
 
   return (
     <motion.div
       drag="y"
-      dragConstraints={{ top: -window.innerHeight * 0.4, bottom: 0 }}
-      dragElastic={0.15}
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragSnapToOrigin
+      dragElastic={0.08}
       onDragEnd={(_, info) => {
-        if (info.offset.y < -60) snapTo(true);
-        else if (info.offset.y > 60) snapTo(false);
-        else animate(y, 0, { type: "spring", stiffness: 280, damping: 28 });
+        if (info.offset.y < -30) setExpanded(true);
+        else if (info.offset.y > 30) setExpanded(false);
       }}
-      style={{ y }}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-20 flex flex-col rounded-t-2xl border-t border-hairline bg-surface shadow-[0_-12px_40px_-8px_rgba(0,0,0,0.6)]",
-      )}
-      initial={{ height: "30vh" }}
-      animate={{ height: expanded ? "70vh" : "30vh" }}
+      className={cn("fixed inset-x-0 bottom-0 z-20 flex flex-col rounded-t-2xl border-t border-hairline bg-surface shadow-[0_-12px_40px_-8px_rgba(0,0,0,0.6)]")}
+      initial={{ height: COLLAPSED_HEIGHT }}
+      animate={{ height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT }}
       transition={{ type: "spring", stiffness: 240, damping: 26 }}
     >
-      <div className="flex justify-center pt-2" onClick={() => snapTo(!expanded)}>
+      <div
+        className="flex cursor-grab touch-none justify-center py-2 active:cursor-grabbing"
+        onPointerDown={(e) => dragControls.start(e)}
+        onClick={() => setExpanded((v) => !v)}
+      >
         <div className="h-1 w-8 rounded-full bg-hairline" />
       </div>
 
-      {showPin ? (
+      {expanded && showPin ? (
         <div className="flex-1 overflow-hidden">
           <PinDetailPanel />
         </div>
-      ) : (
+      ) : expanded ? (
         <div className="flex-1 overflow-y-auto px-3 py-3">
           <div className="mb-2 flex items-center justify-between px-1">
             <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
@@ -72,6 +68,8 @@ const MobileBottomSheet = () => {
             ))}
           </ul>
         </div>
+      ) : (
+        <div className="sr-only">Bottom sheet minimized</div>
       )}
     </motion.div>
   );

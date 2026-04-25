@@ -87,34 +87,17 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   }, [photoUrl]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-base/95 backdrop-blur-md animate-fade-up">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-hairline bg-surface/50">
-        <div className="flex items-center gap-3">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-          <span className="font-display text-sm text-ink">{pinName}</span>
-          <span className="text-[10px] font-mono-data text-ink-secondary">360° View</span>
-        </div>
-        <button
-          onClick={onClose}
-          aria-label="Close panorama viewer"
-          className="grid h-8 w-8 place-items-center rounded-md text-ink-secondary hover:bg-elevated hover:text-accent transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+    <div className="fixed inset-0 z-50 bg-black animate-fade-up">
+      <button
+        onClick={onClose}
+        aria-label={`Close panorama viewer for ${pinName}`}
+        className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+      >
+        <X className="h-5 w-5" />
+      </button>
 
-      {/* Panorama container */}
-      <div ref={containerRef} className="flex-1 w-full" />
-
-      {/* Footer hint */}
-      <div className="flex items-center justify-center gap-4 py-2 border-t border-hairline bg-surface/50">
-        <span className="text-[11px] text-ink-secondary">Drag to look around</span>
-        <span className="text-[11px] text-ink-muted">•</span>
-        <span className="text-[11px] text-ink-secondary">Scroll to zoom</span>
-        <span className="text-[11px] text-ink-muted">•</span>
-        <span className="text-[11px] text-ink-secondary">ESC to close</span>
-      </div>
+      {/* Panorama container (immersive full-screen) */}
+      <div ref={containerRef} className="h-full w-full" />
     </div>
   );
 };
