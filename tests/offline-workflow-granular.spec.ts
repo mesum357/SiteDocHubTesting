@@ -112,4 +112,43 @@ test.describe("Offline Workflow (Granular)", () => {
     await expect((await getQueueCounts(page)).failed).toBe(0);
     await detachDiagnostics();
   });
+
+  test("offline keeps floor/pdf + pin photo and mobile 360 close works", async ({ page, context }, testInfo) => {
+    test.setTimeout(120_000);
+    const detachDiagnostics = await attachBrowserDiagnostics(page, testInfo);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginIfNeeded(page);
+    await ensureJobSelected(page, "E2E Offline Workflow Job");
+    await ensureFloorPdf(page);
+    await waitForFloorPlanReady(page);
+
+    const pinName = `Offline View Pin ${Date.now()}`;
+    await placePinAndSelect(page, pinName);
+    await uploadDummyPhotoFromPicker(page);
+    await expect(page.locator(`img[alt="${pinName}"]`)).toBeVisible({ timeout: 20_000 });
+
+    await setOffline(context, page);
+    await page.reload();
+    await expect(page.locator("header")).toBeVisible({ timeout: 20_000 });
+    await waitForFloorPlanReady(page);
+
+    const marker = page.locator("[data-testid^='floor-map-marker-']").first();
+    await expect(marker).toBeVisible({ timeout: 20_000 });
+    await marker.click();
+
+    const pinPhoto = page.locator(`img[alt="${pinName}"]`).first();
+    await expect(pinPhoto).toBeVisible({ timeout: 20_000 });
+
+    await pinPhoto.hover({ force: true });
+    const view360Btn = page.getByRole("button", { name: /view full 360/i });
+    await expect(view360Btn).toBeVisible({ timeout: 10_000 });
+    await view360Btn.click();
+
+    const closeViewerBtn = page.getByRole("button", { name: new RegExp(`Close panorama viewer for ${pinName}`, "i") });
+    await expect(closeViewerBtn).toBeVisible({ timeout: 10_000 });
+    await closeViewerBtn.click();
+    await expect(closeViewerBtn).toBeHidden({ timeout: 10_000 });
+
+    await detachDiagnostics();
+  });
 });

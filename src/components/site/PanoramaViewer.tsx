@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 interface Props {
   photoUrl: string;
@@ -86,7 +87,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
     };
   }, [photoUrl]);
 
-  return (
+  const viewer = (
     <div className="fixed inset-0 z-[120] bg-black animate-fade-up">
       <button
         onClick={onClose}
@@ -100,6 +101,8 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       <div ref={containerRef} className="h-full w-full" />
     </div>
   );
+
+  return createPortal(viewer, document.body);
 };
 
 export default PanoramaViewer;

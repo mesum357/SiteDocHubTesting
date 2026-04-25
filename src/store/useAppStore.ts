@@ -274,6 +274,43 @@ export const useAppStore = create<AppState>((set, get) => ({
             if (!item.error && item.signedUrl) photoUrlMap.set(item.path, item.signedUrl);
           });
         }
+
+        // Hydrate IndexedDB caches from signed URLs so viewed data remains usable offline.
+        // Run as best-effort in background; do not block the initial UI render.
+        const floorsToCache = floorRows
+          .map((f) => ({ floorId: f.id, path: f.pdf_path }))
+          .filter((x): x is { floorId: string; path: string } => Boolean(x.path));
+        const pinsToCache = pinRows
+          .map((p) => ({ pinId: p.id, path: p.photo_path }))
+          .filter((x): x is { pinId: string; path: string } => Boolean(x.path));
+
+        void (async () => {
+          for (const floorEntry of floorsToCache) {
+            const signed = pdfUrlMap.get(floorEntry.path);
+            if (!signed) continue;
+            try {
+              const res = await fetch(signed);
+              if (!res.ok) continue;
+              const blob = await res.blob();
+              await cacheFloorPdf(floorEntry.floorId, blob);
+            } catch {
+              // best-effort only
+            }
+          }
+
+          for (const pinEntry of pinsToCache) {
+            const signed = photoUrlMap.get(pinEntry.path);
+            if (!signed) continue;
+            try {
+              const res = await fetch(signed);
+              if (!res.ok) continue;
+              const blob = await res.blob();
+              await cachePinPhoto(pinEntry.pinId, blob);
+            } catch {
+              // best-effort only
+            }
+          }
+        })();
       }
 
       // Assemble structure (local cached blobs first, then signed URL fallback)
@@ -378,7 +415,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               capturedAt: p.photo_taken_at ?? undefined,
             });
           }
-          assembledFloors.push({ id: f.id, name: f.label, pins: assembledPins });
+          const cachedPdf = await getCachedFloorPdf(f.id);
+          assembledFloors.push({
+            id: f.id,
+            name: f.label,
+            pdfPath: f.pdf_path ?? undefined,
+            pdfUrl: cachedPdf ? URL.createObjectURL(cachedPdf) : undefined,
+            pins: assembledPins,
+          });
         }
         jobs.push({ id: j.id, name: j.name, description: j.description ?? "", createdAt: j.created_at, archived: j.archived, floors: assembledFloors });
       }

@@ -62,6 +62,24 @@ async function main() {
     ),
   });
 
+  // DEV focused mobile/offline 360 close + cached floor/photo behavior
+  stages.push({
+    name: "dev-mobile-offline-360",
+    result: await runCommand(
+      "npx",
+      [
+        "playwright",
+        "test",
+        "--config=playwright.config.ts",
+        "--workers=1",
+        "tests/offline-workflow-granular.spec.ts",
+        "--grep",
+        "offline keeps floor/pdf + pin photo and mobile 360 close works",
+      ],
+      { BASE_URL: baseDev, TARGET_ENV: "dev" }
+    ),
+  });
+
   const allPassed = stages.every((s) => s.result.ok);
   console.log("\n[full-app-verification] summary");
   for (const stage of stages) {
