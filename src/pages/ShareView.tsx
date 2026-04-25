@@ -61,15 +61,10 @@ const ShareView = () => {
 
     const fetchData = async () => {
       try {
-        const res = await supabase.functions.invoke("share", {
-          body: null,
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        // The share function reads token from URL path, so we call it differently
-        // Use a direct fetch to the function URL with the token
-        const supabaseUrl = (supabase as any).supabaseUrl || import.meta.env.VITE_SUPABASE_URL;
+        // The share function reads token from URL path; call it directly.
+        const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+        const supa = supabase as unknown as { supabaseUrl?: string };
+        const supabaseUrl = supa.supabaseUrl || envUrl;
         const funcUrl = `${supabaseUrl}/functions/v1/share/${token}`;
         const response = await fetch(funcUrl);
         const data = await response.json();
@@ -98,10 +93,10 @@ const ShareView = () => {
         setPins(pinsWithLocalFirst);
         setActiveFloorId(data.floors?.[0]?.id || "");
         setStatus("ready");
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!mounted) return;
         setStatus("error");
-        setErrorMsg(err.message || "Something went wrong");
+        setErrorMsg(err instanceof Error ? err.message : "Something went wrong");
       }
     };
 

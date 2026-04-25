@@ -7,9 +7,19 @@ interface Props {
   onClose: () => void;
 }
 
+type PannellumViewer = { destroy?: () => void } | null;
+
+declare global {
+  interface Window {
+    pannellum?: {
+      viewer: (container: HTMLElement, config: Record<string, unknown>) => PannellumViewer;
+    };
+  }
+}
+
 const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const viewerRef = useRef<any>(null);
+  const viewerRef = useRef<PannellumViewer>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -38,7 +48,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       }
 
       // Load JS if not already present
-      if (!(window as any).pannellum) {
+      if (!window.pannellum) {
         await new Promise<void>((resolve, reject) => {
           const script = document.createElement("script");
           script.src = "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js";
@@ -49,8 +59,8 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       }
 
       // Initialize viewer
-      if (containerRef.current && (window as any).pannellum) {
-        viewerRef.current = (window as any).pannellum.viewer(containerRef.current, {
+      if (containerRef.current && window.pannellum) {
+        viewerRef.current = window.pannellum.viewer(containerRef.current, {
           type: "equirectangular",
           panorama: photoUrl,
           autoLoad: true,

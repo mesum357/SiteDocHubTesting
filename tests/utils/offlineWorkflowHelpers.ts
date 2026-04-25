@@ -231,9 +231,10 @@ export async function getQueueCounts(page: Page) {
     const store = tx.objectStore("upload_queue");
     const allReq = store.getAll();
 
-    const all = await new Promise<any[]>((resolve, reject) => {
+    type QueueRow = { status?: string };
+    const all = await new Promise<QueueRow[]>((resolve, reject) => {
       allReq.onerror = () => reject(allReq.error);
-      allReq.onsuccess = () => resolve((allReq.result ?? []) as any[]);
+      allReq.onsuccess = () => resolve((allReq.result ?? []) as QueueRow[]);
     });
 
     const queued = all.filter((i) => i.status === "pending" || i.status === "syncing").length;

@@ -14,6 +14,8 @@ export interface Floor {
   id: string;
   name: string;
   pdfUrl?: string; // Supabase Storage public URL of the floor plan PDF
+  /** Storage path for floor-plans bucket; used for caching/signed URL refresh. */
+  pdfPath?: string;
   pins: Pin[];
 }
 

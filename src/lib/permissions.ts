@@ -21,6 +21,7 @@ export type PermissionAction =
   | "VIEW_JOBS"
   | "CREATE_JOB"
   | "EDIT_JOB"
+  | "DELETE_JOB"
   | "ARCHIVE_JOB"
   | "VIEW_FLOORS"
   | "CREATE_FLOOR"
@@ -61,6 +62,7 @@ const PERMISSIONS: Record<PermissionAction, ReadonlySet<UserRole>> = {
   VIEW_JOBS: new Set<UserRole>(["field_worker", "office_staff", "admin"]),
   CREATE_JOB: new Set<UserRole>(["office_staff", "admin"]),
   EDIT_JOB: new Set<UserRole>(["office_staff", "admin"]),
+  DELETE_JOB: new Set<UserRole>(["office_staff", "admin"]),
   ARCHIVE_JOB: new Set<UserRole>(["admin"]),
   VIEW_FLOORS: new Set<UserRole>(["field_worker", "office_staff", "admin"]),
   CREATE_FLOOR: new Set<UserRole>(["office_staff", "admin"]),

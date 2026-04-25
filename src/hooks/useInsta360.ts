@@ -56,8 +56,9 @@ export const useInsta360 = () => {
     setError(null);
     try {
       return await capturePhotoFromInsta360();
-    } catch (err: any) {
-      setError(err.message ?? "Camera error");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Camera error";
+      setError(message);
       return null;
     } finally {
       setCapturing(false);

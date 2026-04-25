@@ -19,6 +19,8 @@ import {
   updatePinPhotoLocal,
   cachePinPhoto,
   getCachedPinPhoto,
+  getCachedFloorPdf,
+  cacheFloorPdf,
 } from "@/lib/db";
 import type { DBJob, DBFloor, DBPin } from "@/lib/db";
 
@@ -37,6 +39,29 @@ function pickActiveAfterLoad(
       ? prevActiveFloorId
       : job?.floors[0]?.id ?? "";
   return { activeJobId: nextActiveId, activeFloorId: nextFloorId };
+}
+
+const LS_KEYS = {
+  activeJobId: "SiteDocHB.activeJobId",
+  activeFloorId: "SiteDocHB.activeFloorId",
+  selectedPinId: "SiteDocHB.selectedPinId",
+} as const;
+
+function safeGet(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function safeSet(key: string, value: string) {
+  try {
+    if (!value) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // ignore (storage may be disabled)
+  }
 }
 
 interface AppState {
@@ -73,6 +98,8 @@ interface AppState {
   removePin: (jobId: string, floorId: string, pinId: string) => void;
   removeFloor: (jobId: string, floorId: string) => void;
   removeJob: (jobId: string) => void;
+  /** Hard-delete via edge function: removes DB rows + storage objects + shares. */
+  hardDeleteJob: (jobId: string) => Promise<void>;
 }
 
 const uid = (prefix = "id") => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -80,9 +107,9 @@ const uid = (prefix = "id") => `${prefix}-${Math.random().toString(36).slice(2, 
 export const useAppStore = create<AppState>((set, get) => ({
   // ─── INITIAL STATE (empty) ──────────────────────────────────────────────────
   jobs: [],
-  activeJobId: "",
-  activeFloorId: "",
-  selectedPinId: null,
+  activeJobId: safeGet(LS_KEYS.activeJobId),
+  activeFloorId: safeGet(LS_KEYS.activeFloorId),
+  selectedPinId: safeGet(LS_KEYS.selectedPinId) || null,
   placementMode: false,
   cameraConnected: false,
   loaded: false,
@@ -105,10 +132,53 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedPinId: null,
       placementMode: false,
     });
+
+    safeSet(LS_KEYS.activeJobId, id);
+    safeSet(LS_KEYS.activeFloorId, job.floors[0]?.id ?? "");
+    safeSet(LS_KEYS.selectedPinId, "");
+
+    // Pre-cache all floor PDFs for this job so the blueprint renders offline later.
+    const pdfPaths = job.floors
+      .map((f) => f.pdfPath)
+      .filter((p): p is string => Boolean(p));
+    if (pdfPaths.length > 0) {
+      (async () => {
+        try {
+          const { data } = await supabase.storage
+            .from("floor-plans")
+            .createSignedUrls(pdfPaths, 3600);
+          const urlsByPath = new Map<string, string>();
+          data?.forEach((item) => {
+            if (!item.error && item.signedUrl) urlsByPath.set(item.path, item.signedUrl);
+          });
+
+          // Small concurrency to avoid spiky bandwidth.
+          const floors = job.floors.filter((f) => f.pdfPath);
+          for (const f of floors) {
+            const signedUrl = f.pdfPath ? urlsByPath.get(f.pdfPath) : undefined;
+            if (!signedUrl) continue;
+            try {
+              const res = await fetch(signedUrl);
+              const blob = await res.blob();
+              await cacheFloorPdf(f.id, blob);
+            } catch {
+              // ignore per-file errors; remaining PDFs still cache
+            }
+          }
+        } catch {
+          // ignore
+        }
+      })();
+    }
   },
   setActiveFloor: (id) =>
-    set({ activeFloorId: id, selectedPinId: null, placementMode: false }),
-  selectPin: (id) => set({ selectedPinId: id, placementMode: false }),
+    (set({ activeFloorId: id, selectedPinId: null, placementMode: false }),
+    safeSet(LS_KEYS.activeFloorId, id),
+    safeSet(LS_KEYS.selectedPinId, "")),
+  selectPin: (id) => (
+    set({ selectedPinId: id, placementMode: false }),
+    safeSet(LS_KEYS.selectedPinId, id ?? "")
+  ),
   togglePlacement: (on) => {
     // Gate: don't allow placement if the active floor has no PDF
     const state = get();
@@ -126,9 +196,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ─── ASYNC DATA LOADING ─────────────────────────────────────────────────────
   loadJobs: async () => {
     try {
-      let jobRows: any[] = [];
-      let floorRows: any[] = [];
-      let pinRows: any[] = [];
+      let jobRows: DBJob[] = [];
+      let floorRows: DBFloor[] = [];
+      let pinRows: DBPin[] = [];
 
       if (navigator.onLine) {
         // Fetch jobs from Supabase
@@ -139,7 +209,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           .order("created_at", { ascending: false });
 
         if (jobErr) throw jobErr;
-        jobRows = jobs ?? [];
+        jobRows = (jobs ?? []) as DBJob[];
 
         // Fetch all floors
         if (jobRows.length > 0) {
@@ -150,7 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             .in("job_id", jobIds)
             .order("floor_order");
           if (floorErr) throw floorErr;
-          floorRows = floors ?? [];
+          floorRows = (floors ?? []) as DBFloor[];
         }
 
         // Fetch all pins
@@ -162,13 +232,13 @@ export const useAppStore = create<AppState>((set, get) => ({
             .in("floor_id", floorIds)
             .order("pin_order");
           if (pinErr) throw pinErr;
-          pinRows = pins ?? [];
+          pinRows = (pins ?? []) as DBPin[];
         }
 
         // Cache to IndexedDB
-        await cacheJobs(jobRows as DBJob[]);
-        await cacheFloors(floorRows as DBFloor[]);
-        await cachePins(pinRows as DBPin[]);
+        await cacheJobs(jobRows);
+        await cacheFloors(floorRows);
+        await cachePins(pinRows);
       } else {
         // Offline — load from IndexedDB
         jobRows = await getCachedJobs();
@@ -206,7 +276,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
-      // Assemble structure (local cached photo first, then signed URL fallback)
+      // Assemble structure (local cached blobs first, then signed URL fallback)
       const jobs: Job[] = await Promise.all(
         jobRows.map(async (j) => ({
           id: j.id,
@@ -217,10 +287,15 @@ export const useAppStore = create<AppState>((set, get) => ({
           floors: await Promise.all(
             floorRows
               .filter((f) => f.job_id === j.id)
-              .map(async (f) => ({
-                id: f.id,
-                name: f.label,
-                pdfUrl: f.pdf_path ? pdfUrlMap.get(f.pdf_path) : undefined,
+              .map(async (f) => {
+                const cachedPdf = await getCachedFloorPdf(f.id);
+                const localPdfUrl = cachedPdf ? URL.createObjectURL(cachedPdf) : undefined;
+                const remotePdfUrl = f.pdf_path ? pdfUrlMap.get(f.pdf_path) : undefined;
+                return {
+                  id: f.id,
+                  name: f.label,
+                  pdfUrl: localPdfUrl ?? remotePdfUrl,
+                  pdfPath: f.pdf_path ?? undefined,
                 pins: await Promise.all(
                   pinRows
                     .filter((p) => p.floor_id === f.id)
@@ -238,7 +313,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                       };
                     })
                 ),
-              }))
+                };
+              })
           ),
         }))
       );
@@ -264,6 +340,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         activeFloorId,
         loaded: true,
       });
+
+      // Restore selected pin if it still exists under the restored job/floor.
+      const savedPinId = safeGet(LS_KEYS.selectedPinId);
+      if (savedPinId) {
+        const restoredJob = merged.find((j) => j.id === activeJobId);
+        const restoredFloor = restoredJob?.floors.find((f) => f.id === activeFloorId);
+        const stillThere = restoredFloor?.pins.some((p) => p.id === savedPinId);
+        if (stillThere) {
+          set({ selectedPinId: savedPinId });
+        } else {
+          set({ selectedPinId: null });
+          safeSet(LS_KEYS.selectedPinId, "");
+        }
+      }
     } catch (err) {
       console.error("[SiteDocHB] Failed to load jobs:", err);
       // Try local cache as absolute fallback
@@ -620,6 +710,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const signedUrl = signedData?.signedUrl || "";
 
     // Update local state with signed URL for display
+    const localUrl = URL.createObjectURL(file);
     set((s) => ({
       jobs: s.jobs.map((j) =>
         j.id !== jobId
@@ -627,11 +718,14 @@ export const useAppStore = create<AppState>((set, get) => ({
           : {
               ...j,
               floors: j.floors.map((f) =>
-                f.id !== floorId ? f : { ...f, pdfUrl: signedUrl }
+                f.id !== floorId ? f : { ...f, pdfUrl: localUrl, pdfPath: filePath }
               ),
             }
       ),
     }));
+
+    // Cache PDF for offline use immediately.
+    await cacheFloorPdf(floorId, file);
 
     // Store the STORAGE PATH in DB (not signed URL — URLs expire)
     await supabase.from("floors").update({ pdf_path: filePath }).eq("id", floorId);
@@ -707,6 +801,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // 2. Local DB
     deletePinLocal(pinId);
+    if (get().selectedPinId === pinId) safeSet(LS_KEYS.selectedPinId, "");
 
     // 3. Supabase/Queue
     const deleteFromSupabase = async () => {
@@ -738,6 +833,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // 2. Local DB
     deleteFloorLocal(floorId);
+    if (get().activeFloorId === floorId) safeSet(LS_KEYS.activeFloorId, "");
 
     // 3. Supabase/Queue
     const deleteFromSupabase = async () => {
@@ -763,6 +859,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // 2. Local DB
     deleteJobLocal(jobId);
+    if (get().activeJobId === jobId) {
+      safeSet(LS_KEYS.activeJobId, "");
+      safeSet(LS_KEYS.activeFloorId, "");
+      safeSet(LS_KEYS.selectedPinId, "");
+    }
 
     // 3. Supabase/Queue
     const deleteFromSupabase = async () => {
@@ -774,6 +875,39 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     };
     deleteFromSupabase();
+  },
+
+  hardDeleteJob: async (jobId) => {
+    if (!navigator.onLine) throw new Error("You must be online to delete a job.");
+    const job = get().jobs.find((j) => j.id === jobId);
+    // Call edge function (service role) to delete DB + storage + shares.
+    const { error } = await supabase.functions.invoke("delete-job", {
+      body: { jobId },
+    });
+    if (error) throw error;
+
+    // Remove from local state/IndexedDB immediately.
+    set((s) => {
+      const remaining = s.jobs.filter((j) => j.id !== jobId);
+      const nextActiveJobId = s.activeJobId === jobId ? (remaining[0]?.id ?? "") : s.activeJobId;
+      const nextJob = remaining.find((j) => j.id === nextActiveJobId);
+      const nextActiveFloorId =
+        s.activeJobId === jobId ? (nextJob?.floors[0]?.id ?? "") : s.activeFloorId;
+      return {
+        jobs: remaining,
+        activeJobId: nextActiveJobId,
+        activeFloorId: nextActiveFloorId,
+        selectedPinId: null,
+        placementMode: false,
+      };
+    });
+    await deleteJobLocal(jobId);
+
+    if (job && safeGet(LS_KEYS.activeJobId) === jobId) {
+      safeSet(LS_KEYS.activeJobId, "");
+      safeSet(LS_KEYS.activeFloorId, "");
+      safeSet(LS_KEYS.selectedPinId, "");
+    }
   },
 }));
 

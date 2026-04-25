@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera, Trash2 } from "lucide-react";
 import { useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { flushUploadQueue } from "@/lib/syncEngine";
@@ -9,6 +9,16 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Props {
   onNewJob: () => void;
@@ -19,17 +29,44 @@ const Header = ({ onNewJob, onShare }: Props) => {
   const job = useActiveJob();
   const jobs = useAppStore((s) => s.jobs);
   const setActiveJob = useAppStore((s) => s.setActiveJob);
+  const hardDeleteJob = useAppStore((s) => s.hardDeleteJob);
   const { label: syncLabel, color: syncColor, status: syncStatus } = useSyncStatus();
   const [open, setOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const { role, user, signOut } = useAuthStore();
   const navigate = useNavigate();
+
+  const deleteEnabled = useMemo(() => {
+    if (!job) return false;
+    return canPerform(role, "DELETE_JOB") && deleteConfirm.trim() === job.name.trim();
+  }, [deleteConfirm, job, role]);
 
   const handleSyncClick = () => {
     if (syncStatus === "error") {
       flushUploadQueue();
       toast.info("Retrying sync...");
+    }
+  };
+
+  const handleDeleteJob = async () => {
+    if (!job) return;
+    if (!deleteEnabled) return;
+    setDeleting(true);
+    try {
+      await hardDeleteJob(job.id);
+      toast.success(`Job "${job.name}" deleted`);
+      setDeleteOpen(false);
+      setDeleteConfirm("");
+      setOpen(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete job";
+      toast.error(message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -89,6 +126,16 @@ const Header = ({ onNewJob, onShare }: Props) => {
                   ))}
                 </ul>
               )}
+
+              {job && canPerform(role, "DELETE_JOB") && (
+                <button
+                  onClick={() => setDeleteOpen(true)}
+                  className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete Job…
+                </button>
+              )}
+
               {canPerform(role, "CREATE_JOB") && (
                 <button
                   onClick={() => { setOpen(false); onNewJob(); }}
@@ -176,6 +223,37 @@ const Header = ({ onNewJob, onShare }: Props) => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={deleteOpen} onOpenChange={(v) => { setDeleteOpen(v); if (!v) setDeleteConfirm(""); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete job "{job?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the job, all floors, all pins, all PDFs/photos, and all share links. This cannot be undone.
+              <div className="mt-3 text-xs text-ink-secondary">
+                Type the job name to confirm:
+              </div>
+              <input
+                autoFocus
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder={job?.name ?? ""}
+                className="mt-2 w-full rounded-md border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-red-500"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJob}
+              disabled={!deleteEnabled || deleting}
+              className={cn("bg-red-600 hover:bg-red-700", (!deleteEnabled || deleting) && "opacity-60")}
+            >
+              {deleting ? "Deleting…" : "Delete Job"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 };

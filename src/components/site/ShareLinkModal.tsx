@@ -22,36 +22,51 @@ const ShareLinkModal = ({ open, onOpenChange }: Props) => {
     setLoading(true);
 
     const generateToken = async () => {
+      const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      const toStartOfDayIso = (dateString: string): string => {
+        const [year, month, day] = dateString.split("-").map(Number);
+        return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+      };
+
+      let lastError: unknown = null;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const body: { job_id: string; expires_at?: string } = { job_id: job.id };
-        if (expiry) body.expires_at = new Date(expiry).toISOString();
+        if (expiry) body.expires_at = toStartOfDayIso(expiry);
 
-        const res = await supabase.functions.invoke("generate-share-token", {
-          body,
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : undefined,
-        });
+        // Retry transient failures so users don't get a broken share flow.
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await supabase.functions.invoke("generate-share-token", {
+            body,
+            headers: session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : undefined,
+          });
 
-        if (res.error) throw res.error;
-        const token = res.data?.token;
-        if (!token) throw new Error("No token returned");
+          if (!res.error && res.data?.token) {
+            const base = window.location.origin;
+            setShareUrl(`${base}/share/${res.data.token}`);
+            setError(null);
+            return;
+          }
 
-        const base = window.location.origin;
-        setShareUrl(`${base}/share/${token}`);
-      } catch (err: any) {
+          lastError = res.error ?? new Error("No token returned");
+          if (attempt < 3) await delay(350 * attempt);
+        }
+
+        throw lastError instanceof Error ? lastError : new Error("Failed to generate share token");
+      } catch (err: unknown) {
         console.error("[SiteDocHB] Share token error:", err);
-        setError("Failed to generate share link");
-        // Fallback: use job ID directly
-        setShareUrl(`${window.location.origin}/share/${job.id}`);
+        setError("Failed to generate share link. Please try again.");
+        setShareUrl("");
       } finally {
         setLoading(false);
       }
     };
 
     generateToken();
-  }, [open, job?.id]);
+  }, [open, job?.id, expiry]);
 
   if (!open) return null;
 
@@ -85,9 +100,7 @@ const ShareLinkModal = ({ open, onOpenChange }: Props) => {
           </button>
         </div>
 
-        {error && (
-          <div className="mt-2 text-[11px] text-amber-400">{error} — using fallback link</div>
-        )}
+        {error && <div className="mt-2 text-[11px] text-amber-400">{error}</div>}
 
         <div className="mt-4">
           <label className="block">

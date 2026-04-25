@@ -37,7 +37,6 @@ const Sidebar = ({ onNewJob }: Props) => {
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const placementMode = useAppStore((s) => s.placementMode);
   const removeFloor = useAppStore((s) => s.removeFloor);
-  const removeJob = useAppStore((s) => s.removeJob);
   const role = useAuthStore((s) => s.role);
 
   const [editingName, setEditingName] = useState(false);
@@ -76,11 +75,7 @@ const Sidebar = ({ onNewJob }: Props) => {
     toast.success(`Floor "${floorName}" deleted`);
   };
 
-  const handleDeleteJob = () => {
-    const jobName = job.name;
-    removeJob(job.id);
-    toast.success(`Job "${jobName}" deleted`);
-  };
+  // Job deletion moved to the header job selector (with name-typing gate).
 
   return (
     <div className="flex w-full flex-col">
@@ -108,30 +103,6 @@ const Sidebar = ({ onNewJob }: Props) => {
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button
-                    aria-label="Delete job"
-                    className="grid h-6 w-6 place-items-center rounded text-ink-secondary transition-colors hover:text-red-500"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete job "{job.name}"?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete this job, all {job.floors.length} floor(s), and all associated pins and photos. This cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteJob} className="bg-red-600 hover:bg-red-700">
-                      Delete Job
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
             </div>
           )}
         </div>

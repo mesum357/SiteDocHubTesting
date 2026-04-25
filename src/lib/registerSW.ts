@@ -1,6 +1,10 @@
 import { registerSW } from "virtual:pwa-register";
 import { flushUploadQueue, registerOnlineListener } from "./syncEngine";
 
+type BackgroundSyncRegistration = ServiceWorkerRegistration & {
+  sync?: { register: (tag: string) => Promise<void> };
+};
+
 /**
  * Initialize the service worker, background sync relay, and online listeners.
  * Call once at app startup (main.tsx).
@@ -17,7 +21,7 @@ export function initServiceWorker() {
     onRegisteredSW(_swScriptUrl, registration) {
       // Request background sync when SW is registered
       if (registration && "sync" in registration) {
-        (registration as any).sync
+        (registration as BackgroundSyncRegistration).sync
           .register("SiteDocHB-upload-sync")
           .catch(() => {
             // Background Sync API not available — fall back to online listener
