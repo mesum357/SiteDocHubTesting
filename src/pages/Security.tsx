@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 
 export default function Security() {
   const user = useAuthStore((s) => s.user);
@@ -146,7 +147,12 @@ export default function Security() {
           <form className="mt-4 space-y-3" onSubmit={handleNameUpdate}>
             <div className="space-y-1.5">
               <Label htmlFor="fullName">Full name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="bg-base border-hairline text-ink"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="currentPasswordForName">Current password</Label>
@@ -155,6 +161,7 @@ export default function Security() {
                 type="password"
                 value={currentPasswordForName}
                 onChange={(e) => setCurrentPasswordForName(e.target.value)}
+                className="bg-base border-hairline text-ink"
               />
             </div>
             <Button type="submit" disabled={savingName}>
@@ -170,7 +177,13 @@ export default function Security() {
           <form className="mt-4 space-y-3" onSubmit={handleEmailUpdate}>
             <div className="space-y-1.5">
               <Label htmlFor="newEmail">New email</Label>
-              <Input id="newEmail" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+              <Input
+                id="newEmail"
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="bg-base border-hairline text-ink"
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="currentPasswordForEmail">Current password</Label>
@@ -179,6 +192,7 @@ export default function Security() {
                 type="password"
                 value={currentPasswordForEmail}
                 onChange={(e) => setCurrentPasswordForEmail(e.target.value)}
+                className="bg-base border-hairline text-ink"
               />
             </div>
             <Button type="submit" disabled={savingEmail}>
@@ -199,6 +213,7 @@ export default function Security() {
                 type="password"
                 value={currentPasswordForPassword}
                 onChange={(e) => setCurrentPasswordForPassword(e.target.value)}
+                className="bg-base border-hairline text-ink"
               />
             </div>
             <div className="space-y-1.5">
@@ -208,6 +223,7 @@ export default function Security() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                className="bg-base border-hairline text-ink"
               />
             </div>
             <div className="space-y-1.5">
@@ -217,6 +233,7 @@ export default function Security() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                className="bg-base border-hairline text-ink"
               />
             </div>
             <Button type="submit" disabled={savingPassword}>
@@ -226,6 +243,15 @@ export default function Security() {
           </form>
         </section>
       </main>
+
+      <Sonner
+        position="top-right"
+        toastOptions={{
+          classNames: {
+            toast: "!bg-elevated !border-hairline !text-ink !font-sans",
+          },
+        }}
+      />
     </div>
   );
 }
