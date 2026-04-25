@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { canPerform } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useCachedPinPhotoUrl } from "@/hooks/useCachedPinPhotoUrl";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,13 @@ const Sidebar = ({ onNewJob }: Props) => {
   const filled = floor?.pins.filter((p) => p.photoUrl).length ?? 0;
   const total = floor?.pins.length ?? 0;
   const pct = total === 0 ? 0 : Math.round((filled / total) * 100);
+
+  // Helper to keep list avatars offline-capable.
+  const PinAvatar = ({ pinId, remoteUrl }: { pinId: string; remoteUrl?: string }) => {
+    const src = useCachedPinPhotoUrl(pinId, remoteUrl);
+    if (!src) return null;
+    return <img src={src} alt="" className="h-5 w-5 flex-shrink-0 rounded-full object-cover ring-1 ring-ok" />;
+  };
 
   const handleDeleteFloor = (floorId: string, floorName: string) => {
     removeFloor(job.id, floorId);
@@ -241,7 +249,7 @@ const Sidebar = ({ onNewJob }: Props) => {
                     )}
                   />
                   {p.photoUrl ? (
-                    <img src={p.photoUrl} alt="" className="h-5 w-5 flex-shrink-0 rounded-full object-cover ring-1 ring-ok" />
+                    <PinAvatar pinId={p.id} remoteUrl={p.photoUrl} />
                   ) : (
                     <span className="grid h-5 w-5 flex-shrink-0 place-items-center">
                       <span className="h-2.5 w-2.5 rounded-full border border-accent bg-base pin-pulse" />

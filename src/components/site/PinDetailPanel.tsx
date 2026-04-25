@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import PanoramaViewer from "./PanoramaViewer";
+import { useCachedPinPhotoUrl } from "@/hooks/useCachedPinPhotoUrl";
 
 interface Props {
   tabletOverlay?: boolean;
@@ -63,6 +64,8 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const [dragOver, setDragOver] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const photoSrc = useCachedPinPhotoUrl(pin?.id ?? undefined, pin?.photoUrl);
 
   useEffect(() => {
     setNameDraft(pin?.name ?? "");
@@ -183,9 +186,9 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
       {!empty && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Photo zone */}
-          {pin!.photoUrl ? (
+          {pin!.photoUrl && photoSrc ? (
             <div className="group relative overflow-hidden rounded-lg border border-hairline">
-              <img src={pin!.photoUrl} alt={pin!.name} className="h-48 w-full object-cover" />
+              <img src={photoSrc} alt={pin!.name} className="h-48 w-full object-cover" />
               <div className="absolute inset-0 grid place-items-center bg-base/70 opacity-0 transition-opacity group-hover:opacity-100">
                 <button
                   className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
@@ -341,9 +344,9 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
       )}
 
       {/* 360° Panorama Viewer */}
-      {viewerOpen && pin?.photoUrl && (
+      {viewerOpen && pin?.photoUrl && photoSrc && (
         <PanoramaViewer
-          photoUrl={pin.photoUrl}
+          photoUrl={photoSrc}
           pinName={pin.name}
           onClose={() => setViewerOpen(false)}
         />

@@ -5,6 +5,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { canPerform } from "@/lib/permissions";
 import PinDetailPanel from "./PinDetailPanel";
 import { cn } from "@/lib/utils";
+import { useCachedPinPhotoUrl } from "@/hooks/useCachedPinPhotoUrl";
 
 const COLLAPSED_HEIGHT = "44px"; // larger grab area for easier swipe
 const EXPANDED_HEIGHT = "70vh";
@@ -95,16 +96,7 @@ const MobileBottomSheet = () => {
           </div>
           <ul className="space-y-1">
             {floor?.pins.map((p) => (
-              <li key={p.id}>
-                <button onClick={() => selectPin(p.id)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-elevated">
-                  {p.photoUrl ? (
-                    <img src={p.photoUrl} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-ok" />
-                  ) : (
-                    <span className="h-2.5 w-2.5 rounded-full border border-accent pin-pulse" />
-                  )}
-                  <span className="flex-1 truncate text-sm text-ink">{p.name}</span>
-                </button>
-              </li>
+              <PinRow key={p.id} pin={p} onSelect={() => selectPin(p.id)} />
             ))}
           </ul>
         </div>
@@ -114,5 +106,30 @@ const MobileBottomSheet = () => {
     </motion.div>
   );
 };
+
+function PinRow({
+  pin,
+  onSelect,
+}: {
+  pin: { id: string; name: string; photoUrl?: string };
+  onSelect: () => void;
+}) {
+  const src = useCachedPinPhotoUrl(pin.id, pin.photoUrl);
+  return (
+    <li>
+      <button
+        onClick={onSelect}
+        className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-elevated"
+      >
+        {pin.photoUrl ? (
+          <img src={src} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-ok" />
+        ) : (
+          <span className="h-2.5 w-2.5 rounded-full border border-accent pin-pulse" />
+        )}
+        <span className="flex-1 truncate text-sm text-ink">{pin.name}</span>
+      </button>
+    </li>
+  );
+}
 
 export default MobileBottomSheet;

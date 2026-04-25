@@ -82,6 +82,10 @@ export default function Security() {
   const handleNameUpdate = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!navigator.onLine) {
+      toast.error("You must be online to update account settings.");
+      return;
+    }
     if (!fullName.trim()) {
       toast.error("Name cannot be empty.");
       return;
@@ -124,6 +128,10 @@ export default function Security() {
   const handleEmailUpdate = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!navigator.onLine) {
+      toast.error("You must be online to change email.");
+      return;
+    }
     if (!newEmail.trim()) {
       toast.error("Email cannot be empty.");
       return;
@@ -157,6 +165,10 @@ export default function Security() {
 
   const handlePasswordUpdate = async (e: FormEvent) => {
     e.preventDefault();
+    if (!navigator.onLine) {
+      toast.error("You must be online to change password.");
+      return;
+    }
     if (!currentPasswordForPassword) {
       toast.error("Enter your current password.");
       return;
