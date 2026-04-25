@@ -21,6 +21,10 @@ function getSupabaseAnonKey() {
   );
 }
 
+function getSupabaseUrl() {
+  return process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+}
+
 async function readJsonOrText(res) {
   const text = await res.text();
   if (!text) return { text: "" };
@@ -32,7 +36,10 @@ async function readJsonOrText(res) {
 }
 
 async function main() {
-  const SUPABASE_URL = reqEnv("SUPABASE_URL");
+  const SUPABASE_URL = getSupabaseUrl();
+  if (!SUPABASE_URL) {
+    throw new Error("Missing SUPABASE_URL (or VITE_SUPABASE_URL)");
+  }
   const SUPABASE_ANON_KEY = getSupabaseAnonKey();
   if (!SUPABASE_ANON_KEY) {
     throw new Error(
@@ -45,6 +52,8 @@ async function main() {
   const NEW_EMAIL = optEnv("NEW_EMAIL");
   const NEW_PASSWORD = optEnv("NEW_PASSWORD");
   const REDIRECT_TO = optEnv("REDIRECT_TO"); // e.g. https://siteview-pro.onrender.com/security
+
+  console.log("[auth-diag] using host:", new URL(SUPABASE_URL).host);
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {

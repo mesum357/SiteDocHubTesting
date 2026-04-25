@@ -10,25 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { createClient } from "@supabase/supabase-js";
 
-function isLocalhostOrigin(origin: string) {
-  return (
-    origin.includes("localhost") ||
-    origin.includes("127.0.0.1") ||
-    origin.includes("0.0.0.0")
-  );
-}
-
-function getEmailRedirectTo() {
-  const explicit = import.meta.env.VITE_AUTH_REDIRECT_TO as string | undefined;
-  if (explicit && explicit.trim()) return explicit.trim();
-
-  const origin = window.location.origin;
-  // Many Supabase projects reject redirect_to values not in Auth settings.
-  // In dev, localhost origins are often NOT allow-listed, causing a 400.
-  if (isLocalhostOrigin(origin)) return undefined;
-  return origin;
-}
-
 function getErrMessage(err: unknown, fallback: string) {
   if (err && typeof err === "object" && "message" in err) {
     const msg = (err as { message?: string }).message;
@@ -94,6 +75,24 @@ function toUserFriendlyError(err: unknown, fallback: string) {
   }
 
   return raw;
+}
+
+async function updateAccountViaFunction(input: {
+  currentPassword: string;
+  newEmail?: string;
+  newPassword?: string;
+}) {
+  const { data, error } = await supabase.functions.invoke("update-account", {
+    body: input,
+  });
+  if (error) {
+    let message = error.message;
+    // Function returns structured { error, code } payloads.
+    const maybeData = data as { error?: string } | null;
+    if (maybeData?.error) message = maybeData.error;
+    throw new Error(message);
+  }
+  return data;
 }
 
 export default function Security() {
@@ -215,16 +214,11 @@ export default function Security() {
     setSavingEmail(true);
     try {
       await assertWritableStorage();
-      await reauthenticate(currentPasswordForEmail);
-      const emailRedirectTo = getEmailRedirectTo();
-      const { error } = emailRedirectTo
-        ? await supabase.auth.updateUser(
-            { email: normalizedEmail },
-            { emailRedirectTo }
-          )
-        : await supabase.auth.updateUser({ email: normalizedEmail });
-      if (error) throw error;
-      toast.success("Email update requested. Please verify your new email.");
+      await updateAccountViaFunction({
+        currentPassword: currentPasswordForEmail,
+        newEmail: normalizedEmail,
+      });
+      toast.success("Email updated.");
       setCurrentPasswordForEmail("");
       setNewEmail(normalizedEmail);
     } catch (err: unknown) {
@@ -260,33 +254,17 @@ export default function Security() {
     setSavingPassword(true);
     try {
       await assertWritableStorage();
-      await reauthenticate(currentPasswordForPassword);
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      await updateAccountViaFunction({
+        currentPassword: currentPasswordForPassword,
+        newPassword,
+      });
       toast.success("Password updated.");
       setCurrentPasswordForPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: unknown) {
       const message = toUserFriendlyError(err, "Failed to update password.");
-
-      // Some Supabase Auth configs require an additional reauthentication nonce for password updates.
-      // If that's enabled, the browser SDK cannot satisfy it directly; fall back to reset-email flow.
-      if (/reauth|current password required|update requires reauthentication/i.test(message)) {
-        try {
-          const email = user?.email;
-          if (!email) throw new Error("No authenticated email found.");
-          const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/security`,
-          });
-          if (resetErr) throw resetErr;
-          toast.success("Password reset email sent. Open it to set a new password.");
-        } catch (resetFlowErr: unknown) {
-          toast.error(toUserFriendlyError(resetFlowErr, message));
-        }
-      } else {
-        toast.error(message);
-      }
+      toast.error(message);
     } finally {
       setSavingPassword(false);
     }
