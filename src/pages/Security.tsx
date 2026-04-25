@@ -9,6 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 
+function getErrMessage(err: unknown, fallback: string) {
+  if (err && typeof err === "object" && "message" in err) {
+    const msg = (err as { message?: string }).message;
+    if (msg && typeof msg === "string") return msg;
+  }
+  return fallback;
+}
+
 export default function Security() {
   const user = useAuthStore((s) => s.user);
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name ?? "");
@@ -42,10 +50,15 @@ export default function Security() {
       toast.error("Enter your password to change name.");
       return;
     }
+    const nextName = fullName.trim();
+    const currentName = (user.user_metadata?.full_name as string | undefined)?.trim() ?? "";
+    if (nextName === currentName) {
+      toast.info("Name is unchanged.");
+      return;
+    }
     setSavingName(true);
     try {
       await reauthenticate(currentPasswordForName);
-      const nextName = fullName.trim();
       const { error: authErr } = await supabase.auth.updateUser({
         data: { full_name: nextName },
       });
@@ -60,7 +73,7 @@ export default function Security() {
       toast.success("Name updated.");
       setCurrentPasswordForName("");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to update name.";
+      const message = getErrMessage(err, "Failed to update name.");
       toast.error(message);
     } finally {
       setSavingName(false);
@@ -78,15 +91,22 @@ export default function Security() {
       toast.error("Enter your current password to change email.");
       return;
     }
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    const currentEmail = (user.email ?? "").toLowerCase();
+    if (normalizedEmail === currentEmail) {
+      toast.info("New email is the same as current email.");
+      return;
+    }
     setSavingEmail(true);
     try {
       await reauthenticate(currentPasswordForEmail);
-      const { error } = await supabase.auth.updateUser({ email: newEmail.trim() });
+      const { error } = await supabase.auth.updateUser({ email: normalizedEmail });
       if (error) throw error;
       toast.success("Email update requested. Please verify your new email.");
       setCurrentPasswordForEmail("");
+      setNewEmail(normalizedEmail);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to update email.";
+      const message = getErrMessage(err, "Failed to update email.");
       toast.error(message);
     } finally {
       setSavingEmail(false);
@@ -107,6 +127,10 @@ export default function Security() {
       toast.error("New passwords do not match.");
       return;
     }
+    if (newPassword === currentPasswordForPassword) {
+      toast.error("New password must be different from current password.");
+      return;
+    }
     setSavingPassword(true);
     try {
       await reauthenticate(currentPasswordForPassword);
@@ -117,7 +141,7 @@ export default function Security() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to update password.";
+      const message = getErrMessage(err, "Failed to update password.");
       toast.error(message);
     } finally {
       setSavingPassword(false);
