@@ -4,6 +4,7 @@ import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { canPerform } from "@/lib/permissions";
 import { usePdfRenderer } from "@/hooks/usePdfRenderer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -151,6 +152,7 @@ const FloorPlanCanvas = () => {
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const addPin = useAppStore((s) => s.addPin);
   const role = useAuthStore((s) => s.role);
+  const isMobile = useIsMobile();
 
   const {
     imageUrl: pdfImageUrl,
@@ -292,7 +294,10 @@ const FloorPlanCanvas = () => {
     <div
       data-testid="floor-plan-root"
       data-floor-plan-state="ready"
-      className="relative h-full w-full blueprint-grid"
+      className={cn(
+        "relative h-full w-full blueprint-grid",
+        isMobile && "pb-20"
+      )}
     >
       <div
         ref={containerRef}
@@ -443,7 +448,12 @@ const FloorPlanCanvas = () => {
       )}
 
       {/* Zoom controls */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full border border-hairline glass px-1.5 py-1 shadow-xl">
+      <div
+        className={cn(
+          "absolute right-4 z-10 flex items-center gap-1 rounded-full border border-hairline glass px-1.5 py-1 shadow-xl",
+          isMobile ? "bottom-16" : "bottom-4"
+        )}
+      >
         <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))} aria-label="Zoom out" className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary hover:bg-elevated hover:text-accent">
           <Minus className="h-3.5 w-3.5" />
         </button>
@@ -457,7 +467,7 @@ const FloorPlanCanvas = () => {
       </div>
 
       {/* Floor badge */}
-      <div className="absolute left-4 bottom-4 rounded-md border border-hairline bg-elevated/80 backdrop-blur px-3 py-1.5">
+      <div className={cn("absolute left-4 rounded-md border border-hairline bg-elevated/80 backdrop-blur px-3 py-1.5", isMobile ? "bottom-16" : "bottom-4")}>
         <div className="font-display text-xs text-ink">{floor?.name}</div>
         <div className="font-mono-data text-[10px] text-ink-secondary">{floor?.pins.filter(p => p.photoUrl).length}/{floor?.pins.length} captured</div>
       </div>

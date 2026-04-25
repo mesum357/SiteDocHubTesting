@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import { useAppStore, useActiveFloor } from "@/store/useAppStore";
 import PinDetailPanel from "./PinDetailPanel";
@@ -17,6 +17,13 @@ const MobileBottomSheet = () => {
   const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
+
+  // Auto-open details when a map pin is selected on mobile.
+  useEffect(() => {
+    if (selectedPinId) {
+      setExpanded(true);
+    }
+  }, [selectedPinId]);
 
   return (
     <motion.div
