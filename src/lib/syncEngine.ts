@@ -36,6 +36,18 @@ function notifyListeners(status: EngineSyncStatus, queueCount: number) {
 let isSyncing = false;
 let listenersRegistered = false;
 
+function isTransientNetworkError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return (
+    msg.toLowerCase().includes("offline") ||
+    msg.toLowerCase().includes("failed to fetch") ||
+    msg.toLowerCase().includes("networkerror") ||
+    msg.toLowerCase().includes("err_internet_disconnected") ||
+    msg.toLowerCase().includes("fetcherror") ||
+    msg.toLowerCase().includes("load failed")
+  );
+}
+
 export async function flushUploadQueue(): Promise<void> {
   if (isSyncing) return;
   if (!navigator.onLine) return;
@@ -51,6 +63,7 @@ export async function flushUploadQueue(): Promise<void> {
     notifyListeners("syncing", pending.length);
 
     let remaining = pending.length;
+    let abortedForNetwork = false;
 
     for (const item of pending) {
       try {
@@ -84,6 +97,15 @@ export async function flushUploadQueue(): Promise<void> {
         remaining--;
         notifyListeners("syncing", remaining);
       } catch (error: unknown) {
+        // If the network dropped mid-sync, don't surface this as a "sync error".
+        // Leave items queued and let the online listener / manual retry flush later.
+        if (isTransientNetworkError(error)) {
+          await updateQueueItem(item.id!, { status: "pending" });
+          abortedForNetwork = true;
+          notifyListeners("idle", remaining);
+          break;
+        }
+
         const message =
           error instanceof Error ? error.message : "Unknown error";
         await markQueueItemFailed(item.id!, message);
@@ -92,7 +114,18 @@ export async function flushUploadQueue(): Promise<void> {
     }
 
     await clearDoneQueueItems();
-    notifyListeners(remaining === 0 ? "idle" : "error", remaining);
+    if (remaining === 0) {
+      notifyListeners("idle", 0);
+      return;
+    }
+
+    // If we bailed due to transient network issues, keep the UI calm and queued.
+    if (abortedForNetwork) {
+      notifyListeners("idle", remaining);
+      return;
+    }
+
+    notifyListeners("error", remaining);
   } finally {
     isSyncing = false;
   }
