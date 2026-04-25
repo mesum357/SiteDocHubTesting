@@ -13,18 +13,76 @@ import { useAppStore } from "@/store/useAppStore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 const Index = () => {
   const [newJobOpen, setNewJobOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(false);
+  const [iosHintDismissed, setIosHintDismissed] = useState(false);
   const isMobile = useIsMobile();
   const placementMode = useAppStore((s) => s.placementMode);
   const loaded = useAppStore((s) => s.loaded);
   const loadJobs = useAppStore((s) => s.loadJobs);
   const { status: syncStatus, queueCount } = useSyncStatus();
 
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const ua = navigator.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua);
+  const isSafari = isIos && /safari/.test(ua) && !/crios|fxios|edgios/.test(ua);
+
   useEffect(() => {
     loadJobs();
   }, [loadJobs]);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+    };
+
+    const onAppInstalled = () => {
+      setInstallPromptEvent(null);
+      setInstallBannerDismissed(true);
+      setIosHintDismissed(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, []);
+
+  const canShowInstallBanner =
+    !isStandalone &&
+    !!installPromptEvent &&
+    !installBannerDismissed;
+
+  const canShowIosHint =
+    !isStandalone &&
+    isIos &&
+    isSafari &&
+    !canShowInstallBanner &&
+    !iosHintDismissed;
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) return;
+    await installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice;
+    setInstallPromptEvent(null);
+    if (choice.outcome === "accepted") {
+      setInstallBannerDismissed(true);
+    }
+  };
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-base text-ink">
@@ -75,6 +133,46 @@ const Index = () => {
       {syncStatus === "syncing" && (
         <div className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-accent/40 bg-elevated/95 px-3 py-1 text-[11px] text-ink-secondary shadow-lg">
           syncing... {queueCount} queued
+        </div>
+      )}
+
+      {canShowInstallBanner && (
+        <div className="fixed inset-x-3 bottom-3 z-50 md:left-auto md:right-3 md:w-[380px] rounded-lg border border-hairline bg-surface/95 p-3 shadow-2xl backdrop-blur-md">
+          <div className="text-sm font-medium text-ink">Install SiteDocHub app</div>
+          <p className="mt-1 text-xs text-ink-secondary">
+            Add this app to your phone for quick access and better offline experience.
+          </p>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              onClick={() => setInstallBannerDismissed(true)}
+              className="rounded-md px-2.5 py-1.5 text-xs text-ink-secondary hover:bg-elevated"
+            >
+              Later
+            </button>
+            <button
+              onClick={handleInstallApp}
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground"
+            >
+              Install app
+            </button>
+          </div>
+        </div>
+      )}
+
+      {canShowIosHint && (
+        <div className="fixed inset-x-3 bottom-3 z-50 md:left-auto md:right-3 md:w-[420px] rounded-lg border border-hairline bg-surface/95 p-3 shadow-2xl backdrop-blur-md">
+          <div className="text-sm font-medium text-ink">Install on iPhone</div>
+          <p className="mt-1 text-xs text-ink-secondary">
+            In Safari, tap Share, then tap Add to Home Screen.
+          </p>
+          <div className="mt-3 flex items-center justify-end">
+            <button
+              onClick={() => setIosHintDismissed(true)}
+              className="rounded-md px-2.5 py-1.5 text-xs text-ink-secondary hover:bg-elevated"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
     </div>
