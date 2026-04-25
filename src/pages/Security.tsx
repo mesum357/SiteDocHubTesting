@@ -10,12 +10,40 @@ import { Label } from "@/components/ui/label";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { createClient } from "@supabase/supabase-js";
 
+function isLocalhostOrigin(origin: string) {
+  return (
+    origin.includes("localhost") ||
+    origin.includes("127.0.0.1") ||
+    origin.includes("0.0.0.0")
+  );
+}
+
+function getEmailRedirectTo() {
+  const explicit = import.meta.env.VITE_AUTH_REDIRECT_TO as string | undefined;
+  if (explicit && explicit.trim()) return explicit.trim();
+
+  const origin = window.location.origin;
+  // Many Supabase projects reject redirect_to values not in Auth settings.
+  // In dev, localhost origins are often NOT allow-listed, causing a 400.
+  if (isLocalhostOrigin(origin)) return undefined;
+  return origin;
+}
+
 function getErrMessage(err: unknown, fallback: string) {
   if (err && typeof err === "object" && "message" in err) {
     const msg = (err as { message?: string }).message;
     if (msg && typeof msg === "string") return msg;
   }
   return fallback;
+}
+
+function getErrCode(err: unknown): string | undefined {
+  if (!err || typeof err !== "object") return undefined;
+  const anyErr = err as Record<string, unknown>;
+  const code =
+    (typeof anyErr.code === "string" && anyErr.code) ||
+    (typeof anyErr.error_code === "string" && anyErr.error_code);
+  return code || undefined;
 }
 
 async function assertWritableStorage() {
@@ -36,6 +64,7 @@ async function assertWritableStorage() {
 function toUserFriendlyError(err: unknown, fallback: string) {
   const raw = getErrMessage(err, fallback);
   const lower = raw.toLowerCase();
+  const code = getErrCode(err);
 
   if (
     lower.includes("file_error_no_space") ||
@@ -52,6 +81,16 @@ function toUserFriendlyError(err: unknown, fallback: string) {
   }
   if (lower.includes("new email address should be different")) {
     return "New email must be different from your current email.";
+  }
+  if (
+    code === "email_address_invalid" ||
+    (lower.includes("email address") && lower.includes("is invalid"))
+  ) {
+    return (
+      "Supabase rejected this email address. This is usually caused by Auth settings " +
+      "(domain allowlist, SMTP configuration, or strict email validation) rather than a typing mistake. " +
+      "Try a different email domain or update Supabase Auth settings."
+    );
   }
 
   return raw;
@@ -83,11 +122,19 @@ export default function Security() {
       throw new Error("Supabase is not configured (missing env vars).");
     }
 
+    const randomId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now());
+
     const ephemeral = createClient(supabaseUrl, supabaseKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
+        // Use a unique storage key so Supabase doesn't warn about multiple clients
+        // competing over the same key (even though we don't persist).
+        storageKey: `SiteDocHB-reauth-${randomId}`,
       },
     });
 
@@ -169,10 +216,13 @@ export default function Security() {
     try {
       await assertWritableStorage();
       await reauthenticate(currentPasswordForEmail);
-      const { error } = await supabase.auth.updateUser(
-        { email: normalizedEmail },
-        { emailRedirectTo: window.location.origin }
-      );
+      const emailRedirectTo = getEmailRedirectTo();
+      const { error } = emailRedirectTo
+        ? await supabase.auth.updateUser(
+            { email: normalizedEmail },
+            { emailRedirectTo }
+          )
+        : await supabase.auth.updateUser({ email: normalizedEmail });
       if (error) throw error;
       toast.success("Email update requested. Please verify your new email.");
       setCurrentPasswordForEmail("");
@@ -219,7 +269,24 @@ export default function Security() {
       setConfirmPassword("");
     } catch (err: unknown) {
       const message = toUserFriendlyError(err, "Failed to update password.");
-      toast.error(message);
+
+      // Some Supabase Auth configs require an additional reauthentication nonce for password updates.
+      // If that's enabled, the browser SDK cannot satisfy it directly; fall back to reset-email flow.
+      if (/reauth|current password required|update requires reauthentication/i.test(message)) {
+        try {
+          const email = user?.email;
+          if (!email) throw new Error("No authenticated email found.");
+          const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/security`,
+          });
+          if (resetErr) throw resetErr;
+          toast.success("Password reset email sent. Open it to set a new password.");
+        } catch (resetFlowErr: unknown) {
+          toast.error(toUserFriendlyError(resetFlowErr, message));
+        }
+      } else {
+        toast.error(message);
+      }
     } finally {
       setSavingPassword(false);
     }
