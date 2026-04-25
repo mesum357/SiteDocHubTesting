@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import type { UserRole } from "@/lib/permissions";
+import type { UserRole, UserStatus } from "@/lib/permissions";
 
 interface AuthState {
   session: Session | null;
   user: User | null;
   role: UserRole | null;
+  status: UserStatus | null;
   initialized: boolean;
   
   initialize: () => void;
@@ -18,6 +19,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   role: null,
+  status: null,
   initialized: false,
 
   initialize: () => {
@@ -37,7 +39,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session?.user) {
         get().refreshRole();
       } else {
-        set({ role: null, initialized: true });
+        set({ role: null, status: null, initialized: true });
       }
     });
   },
@@ -53,12 +55,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, status")
         .eq("id", user.id)
         .single();
       
       if (!error && data) {
-        set({ role: data.role as UserRole });
+        set({ 
+          role: data.role as UserRole,
+          status: (data.status || 'approved') as UserStatus 
+        });
       }
     } catch (err) {
       console.error("[SiteDocHB] Failed to fetch user role:", err);

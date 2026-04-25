@@ -27,7 +27,7 @@ export default function Login() {
     setErrorMsg("");
     setSuccessMsg("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -35,9 +35,32 @@ export default function Login() {
     if (error) {
       setErrorMsg(error.message);
       toast.error(error.message);
-    } else {
-      setSuccessMsg("Welcome back!");
-      toast.success("Welcome back!");
+    } else if (data?.user) {
+      // Check if user is approved
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("id", data.user.id)
+        .single();
+        
+      if (profileError || !profile || profile.status !== 'approved') {
+        await supabase.auth.signOut();
+        let msg = "Your account is still pending admin approval. Please wait for verification.";
+        
+        if (profile?.status === 'rejected') {
+          msg = "Your account application has been rejected. Please contact support.";
+        } else if (profile?.status === 'banned') {
+          msg = "Your account has been banned. Please contact support.";
+        } else if (profileError || !profile) {
+          msg = "User profile not found. Please contact support.";
+        }
+        
+        setErrorMsg(msg);
+        toast.error(msg);
+      } else {
+        setSuccessMsg("Welcome back!");
+        toast.success("Welcome back!");
+      }
     }
     setLoading(false);
   };

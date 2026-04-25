@@ -1,23 +1,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/** Headers the Supabase JS client may send on `functions.invoke` (preflight must allow them). */
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, prefer",
+} as const;
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
-    });
+    return new Response(null, { status: 204, headers: { ...corsHeaders } });
   }
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
   if (!job_id) {
     return new Response(JSON.stringify({ error: "job_id is required" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
@@ -67,10 +67,7 @@ Deno.serve(async (req) => {
     }),
     {
       status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     }
   );
 });

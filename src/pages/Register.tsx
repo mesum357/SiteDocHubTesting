@@ -53,17 +53,24 @@ export default function Register() {
     if (error) {
       setErrorMsg(error.message);
       toast.error(error.message);
-    } else if (data.user && !data.session) {
-      const msg = "Registration successful! Please check your email to verify your account.";
-      setSuccessMsg(msg);
-      toast.success(msg);
-      // Optional: keep them on page to read the message instead of immediate navigate
-      // navigate("/login");
     } else {
-      const msg = "Registration successful! You can now log in.";
-      setSuccessMsg(msg);
-      toast.success(msg);
-      setTimeout(() => navigate("/login"), 1500);
+      const isWorker = role === ROLES.FIELD_WORKER || role === ROLES.OFFICE_STAFF;
+      
+      if (isWorker) {
+        const msg = "Application submitted! Your account is pending admin approval. You will be able to log in once verified.";
+        setSuccessMsg(msg);
+        toast.success(msg);
+        // Don't auto-navigate, let them read the message
+      } else if (data.user && !data.session) {
+        const msg = "Registration successful! Please check your email to verify your account.";
+        setSuccessMsg(msg);
+        toast.success(msg);
+      } else {
+        const msg = "Registration successful! You can now log in.";
+        setSuccessMsg(msg);
+        toast.success(msg);
+        setTimeout(() => navigate("/login"), 1500);
+      }
     }
     setLoading(false);
   };

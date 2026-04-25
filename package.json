@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:offline": "playwright test tests/offline-workflow.e2e.spec.ts tests/offline-workflow-granular.spec.ts",
+    "test:e2e:full": "playwright test --workers=1 tests/auth-and-shell.spec.ts tests/uploads-online.spec.ts tests/insta360-mocked.spec.ts tests/offline-workflow.e2e.spec.ts tests/offline-workflow-granular.spec.ts tests/full-app-smoke.spec.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -71,6 +73,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",

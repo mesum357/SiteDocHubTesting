@@ -11,6 +11,7 @@ import ShareLinkModal from "@/components/site/ShareLinkModal";
 import { CanvasSkeleton, SidebarSkeleton } from "@/components/site/Skeletons";
 import { useAppStore } from "@/store/useAppStore";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useSyncStatus } from "@/hooks/useSyncStatus";
 
 const Index = () => {
   const [newJobOpen, setNewJobOpen] = useState(false);
@@ -19,6 +20,7 @@ const Index = () => {
   const placementMode = useAppStore((s) => s.placementMode);
   const loaded = useAppStore((s) => s.loaded);
   const loadJobs = useAppStore((s) => s.loadJobs);
+  const { status: syncStatus, queueCount } = useSyncStatus();
 
   useEffect(() => {
     loadJobs();
@@ -67,6 +69,12 @@ const Index = () => {
       {placementMode && (
         <div className="pointer-events-none fixed inset-x-0 top-16 z-40 mx-auto w-fit rounded-full border border-accent bg-accent-soft px-4 py-1.5 text-xs font-display uppercase tracking-wider text-accent animate-fade-up">
           Placement mode — click the floor plan
+        </div>
+      )}
+
+      {syncStatus === "syncing" && (
+        <div className="pointer-events-none fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border border-accent/40 bg-elevated/95 px-3 py-1 text-[11px] text-ink-secondary shadow-lg">
+          syncing... {queueCount} queued
         </div>
       )}
     </div>

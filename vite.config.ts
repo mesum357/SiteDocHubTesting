@@ -29,51 +29,12 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
-      workbox: {
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
-        runtimeCaching: [
-          {
-            // Supabase REST API — NetworkFirst with 8s timeout
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.startsWith("/rest/"),
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "siteviewpro-api-v1",
-              networkTimeoutSeconds: 8,
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
-            },
-          },
-          {
-            // Floor plan PDFs — CacheFirst (large, rarely change)
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("floor-plans"),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "siteviewpro-pdfs-v1",
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 7 * 24 * 60 * 60,
-              },
-            },
-          },
-          {
-            // Site photos — StaleWhileRevalidate
-            urlPattern: ({ url }) =>
-              url.hostname.includes("supabase.co") &&
-              url.pathname.includes("site-photos"),
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "siteviewpro-photos-v1",
-              expiration: {
-                maxEntries: 200,
-                maxAgeSeconds: 3 * 24 * 60 * 60,
-              },
-            },
-          },
-        ],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: {
         name: "Sitedochub",

@@ -43,7 +43,14 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const uploadPinPhoto = useAppStore((s) => s.uploadPinPhoto);
   const role = useAuthStore((s) => s.role);
 
-  const { connected: cameraConnected, capturing: cameraCapturing, triggerCapture } = useInsta360();
+  const {
+    connected: cameraConnected,
+    capturing: cameraCapturing,
+    triggerCapture,
+    batteryPercent,
+    storageFreeMb,
+    connectionHint,
+  } = useInsta360();
 
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
@@ -74,6 +81,13 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
 
   const handleCapture = async () => {
     if (!pin || !floor || !job) return;
+
+    if (!cameraConnected) {
+      toast.info(`${connectionHint} Or choose a file manually.`);
+      fileRef.current?.click();
+      return;
+    }
+
     setCapturing(true);
 
     const blob = await triggerCapture();
@@ -87,8 +101,9 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
         toast.error("Failed to upload captured photo");
       }
     } else {
-      // Camera not available — show error
-      toast.error("Camera capture failed — check connection");
+      // Camera not available — fallback to manual picker.
+      toast.error("Camera capture failed. Choose a photo from your device.");
+      fileRef.current?.click();
     }
     setCapturing(false);
   };
@@ -223,6 +238,16 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
               <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-red-500")}>
                 {cameraConnected ? "Connected" : "Disconnected"}
               </span>
+            </div>
+            <div className="mt-1 text-center text-[10px] text-ink-secondary">
+              {cameraConnected ? (
+                <>
+                  {batteryPercent !== null ? `Battery ${Math.round(batteryPercent)}%` : "Battery —"} ·{" "}
+                  {storageFreeMb !== null ? `${Math.round(storageFreeMb)}MB free` : "Storage —"}
+                </>
+              ) : (
+                connectionHint
+              )}
             </div>
           </div>
 

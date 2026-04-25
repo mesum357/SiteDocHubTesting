@@ -10,7 +10,8 @@ import {
   getCachedFloorPdf,
   cacheFloorPdf,
   addToQueue,
-  upsertPin,
+  updatePinPhotoLocal,
+  cachePinPhoto,
 } from "../lib/db";
 import type { DBJob, DBFloor, DBPin } from "../lib/db";
 import { precacheJobPdfs } from "../lib/registerSW";
@@ -227,25 +228,15 @@ export async function uploadPhotoToPin(
   const storagePath = `${jobId}/${floorId}/${pinId}.jpg`;
   const photoTakenAt = new Date().toISOString();
 
-  // Always update IndexedDB immediately so UI reflects the photo
-  await upsertPin({
-    id: pinId,
-    floor_id: floorId,
-    name: "",
-    x_pct: 0,
-    y_pct: 0,
-    pin_order: 0,
-    photo_path: storagePath,
-    note: null,
-    photo_taken_at: photoTakenAt,
-    created_at: new Date().toISOString(),
-  });
+  // Always update IndexedDB immediately so UI reflects the photo.
+  await updatePinPhotoLocal(pinId, storagePath, photoTakenAt);
+  await cachePinPhoto(pinId, photoBlob);
 
   if (navigator.onLine) {
     try {
       // Try direct upload
       const { error: uploadError } = await supabase.storage
-        .from("site-photos")
+        .from("pin-photos")
         .upload(storagePath, photoBlob, {
           contentType: "image/jpeg",
           upsert: true,

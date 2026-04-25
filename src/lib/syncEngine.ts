@@ -34,59 +34,68 @@ function notifyListeners(status: EngineSyncStatus, queueCount: number) {
 // ─── QUEUE PROCESSOR ──────────────────────────────────────────────────────────
 
 let isSyncing = false;
+let listenersRegistered = false;
 
 export async function flushUploadQueue(): Promise<void> {
   if (isSyncing) return;
   if (!navigator.onLine) return;
 
-  const pending = await getPendingQueueItems();
-  if (pending.length === 0) {
-    notifyListeners("idle", 0);
-    return;
-  }
-
-  isSyncing = true;
-  notifyListeners("syncing", pending.length);
-
-  let remaining = pending.length;
-
-  for (const item of pending) {
-    try {
-      await updateQueueItem(item.id!, {
-        status: "syncing",
-        lastAttemptAt: new Date().toISOString(),
-      });
-
-      switch (item.type) {
-        case "photo_upload":
-          await processPhotoUpload(item);
-          break;
-        case "pin_update":
-          await processPinUpdate(item);
-          break;
-        case "job_create":
-        case "floor_create":
-        case "pin_create":
-          await processRecordCreate(item);
-          break;
-        default:
-          throw new Error(`Unknown queue item type: ${item.type}`);
-      }
-
-      await markQueueItemDone(item.id!);
-      remaining--;
-      notifyListeners("syncing", remaining);
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Unknown error";
-      await markQueueItemFailed(item.id!, message);
-      notifyListeners("error", remaining);
+  try {
+    const pending = await getPendingQueueItems();
+    if (pending.length === 0) {
+      notifyListeners("idle", 0);
+      return;
     }
-  }
 
-  await clearDoneQueueItems();
-  isSyncing = false;
-  notifyListeners(remaining === 0 ? "idle" : "error", remaining);
+    isSyncing = true;
+    notifyListeners("syncing", pending.length);
+
+    let remaining = pending.length;
+
+    for (const item of pending) {
+      try {
+        await updateQueueItem(item.id!, {
+          status: "syncing",
+          lastAttemptAt: new Date().toISOString(),
+        });
+
+        switch (item.type) {
+          case "photo_upload":
+            await processPhotoUpload(item);
+            break;
+          case "pin_update":
+            await processPinUpdate(item);
+            break;
+          case "job_create":
+          case "floor_create":
+          case "pin_create":
+            await processRecordCreate(item);
+            break;
+          case "pin_delete":
+          case "floor_delete":
+          case "job_delete":
+            await processRecordDelete(item);
+            break;
+          default:
+            throw new Error(`Unknown queue item type: ${item.type}`);
+        }
+
+        await markQueueItemDone(item.id!);
+        remaining--;
+        notifyListeners("syncing", remaining);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        await markQueueItemFailed(item.id!, message);
+        notifyListeners("error", remaining);
+      }
+    }
+
+    await clearDoneQueueItems();
+    notifyListeners(remaining === 0 ? "idle" : "error", remaining);
+  } finally {
+    isSyncing = false;
+  }
 }
 
 // ─── QUEUE ITEM PROCESSORS ───────────────────────────────────────────────────
@@ -105,7 +114,7 @@ async function processPhotoUpload(item: QueueItem) {
 
   // Upload photo to Supabase Storage
   const { error: uploadError } = await supabase.storage
-    .from("site-photos")
+    .from("pin-photos")
     .upload(storagePath, photoBlob, {
       contentType: "image/jpeg",
       upsert: true,
@@ -144,6 +153,16 @@ async function processPinUpdate(item: QueueItem) {
   if (error) throw error;
 }
 
+async function processRecordDelete(item: QueueItem) {
+  const { table, id } = item.payload as {
+    table: string;
+    id: string;
+  };
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) throw error;
+}
+
 async function processRecordCreate(item: QueueItem) {
   const { table, record } = item.payload as {
     table: string;
@@ -157,6 +176,9 @@ async function processRecordCreate(item: QueueItem) {
 // ─── AUTO-FLUSH LISTENERS ─────────────────────────────────────────────────────
 
 export function registerOnlineListener() {
+  if (listenersRegistered) return;
+  listenersRegistered = true;
+
   window.addEventListener("online", () => {
     console.log("[SiteDocHB] Back online — flushing upload queue...");
     flushUploadQueue();

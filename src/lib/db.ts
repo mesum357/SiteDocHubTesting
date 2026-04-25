@@ -46,7 +46,10 @@ export interface QueueItem {
     | "pin_update"
     | "job_create"
     | "floor_create"
-    | "pin_create";
+    | "pin_create"
+    | "pin_delete"
+    | "floor_delete"
+    | "job_delete";
   status: "pending" | "syncing" | "failed" | "done";
   retryCount: number;
   maxRetries: number;
@@ -78,6 +81,10 @@ interface SiteDocHBDB extends DBSchema {
     key: string;
     value: FloorPdf;
   };
+  pin_photos: {
+    key: string;
+    value: { pin_id: string; blob: Blob; cachedAt: string };
+  };
   upload_queue: {
     key: number;
     value: QueueItem;
@@ -92,33 +99,40 @@ let dbInstance: IDBPDatabase<SiteDocHBDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<SiteDocHBDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<SiteDocHBDB>("SiteDocHB-db", 1, {
-    upgrade(db) {
-      // jobs store
-      const jobStore = db.createObjectStore("jobs", { keyPath: "id" });
-      jobStore.createIndex("by-archived", "archived");
-      jobStore.createIndex("by-created_at", "created_at");
+  dbInstance = await openDB<SiteDocHBDB>("SiteDocHB-db", 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        // jobs store
+        const jobStore = db.createObjectStore("jobs", { keyPath: "id" });
+        jobStore.createIndex("by-archived", "archived");
+        jobStore.createIndex("by-created_at", "created_at");
 
-      // floors store
-      const floorStore = db.createObjectStore("floors", { keyPath: "id" });
-      floorStore.createIndex("by-job_id", "job_id");
-      floorStore.createIndex("by-floor_order", "floor_order");
+        // floors store
+        const floorStore = db.createObjectStore("floors", { keyPath: "id" });
+        floorStore.createIndex("by-job_id", "job_id");
+        floorStore.createIndex("by-floor_order", "floor_order");
 
-      // pins store
-      const pinStore = db.createObjectStore("pins", { keyPath: "id" });
-      pinStore.createIndex("by-floor_id", "floor_id");
-      pinStore.createIndex("by-pin_order", "pin_order");
+        // pins store
+        const pinStore = db.createObjectStore("pins", { keyPath: "id" });
+        pinStore.createIndex("by-floor_id", "floor_id");
+        pinStore.createIndex("by-pin_order", "pin_order");
 
-      // floor_pdfs store
-      db.createObjectStore("floor_pdfs", { keyPath: "floor_id" });
+        // floor_pdfs store
+        db.createObjectStore("floor_pdfs", { keyPath: "floor_id" });
 
-      // upload_queue store
-      const queueStore = db.createObjectStore("upload_queue", {
-        keyPath: "id",
-        autoIncrement: true,
-      });
-      queueStore.createIndex("by-status", "status");
-      queueStore.createIndex("by-created_at", "createdAt");
+        // upload_queue store
+        const queueStore = db.createObjectStore("upload_queue", {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+        queueStore.createIndex("by-status", "status");
+        queueStore.createIndex("by-created_at", "createdAt");
+      }
+
+      if (oldVersion < 2) {
+        // pin_photos store added in v2
+        db.createObjectStore("pin_photos", { keyPath: "pin_id" });
+      }
     },
   });
 
@@ -149,6 +163,11 @@ export async function upsertJob(job: DBJob) {
   await db.put("jobs", job);
 }
 
+export async function deleteJobLocal(id: string) {
+  const db = await getDB();
+  await db.delete("jobs", id);
+}
+
 // ─── FLOORS ───────────────────────────────────────────────────────────────────
 
 export async function cacheFloors(floors: DBFloor[]) {
@@ -168,6 +187,11 @@ export async function upsertFloor(floor: DBFloor) {
   await db.put("floors", floor);
 }
 
+export async function deleteFloorLocal(id: string) {
+  const db = await getDB();
+  await db.delete("floors", id);
+}
+
 // ─── PINS ─────────────────────────────────────────────────────────────────────
 
 export async function cachePins(pins: DBPin[]) {
@@ -185,6 +209,11 @@ export async function getCachedPinsByFloor(floorId: string): Promise<DBPin[]> {
 export async function upsertPin(pin: DBPin) {
   const db = await getDB();
   await db.put("pins", pin);
+}
+
+export async function deletePinLocal(id: string) {
+  const db = await getDB();
+  await db.delete("pins", id);
 }
 
 export async function updatePinPhotoLocal(
@@ -219,6 +248,23 @@ export async function getCachedFloorPdf(
   const db = await getDB();
   const record = await db.get("floor_pdfs", floorId);
   return record?.pdfBlob ?? null;
+}
+
+// ─── PIN PHOTOS ───────────────────────────────────────────────────────────────
+
+export async function cachePinPhoto(pinId: string, blob: Blob) {
+  const db = await getDB();
+  await db.put("pin_photos", {
+    pin_id: pinId,
+    blob,
+    cachedAt: new Date().toISOString(),
+  });
+}
+
+export async function getCachedPinPhoto(pinId: string): Promise<Blob | null> {
+  const db = await getDB();
+  const record = await db.get("pin_photos", pinId);
+  return record?.blob ?? null;
 }
 
 // ─── UPLOAD QUEUE ─────────────────────────────────────────────────────────────

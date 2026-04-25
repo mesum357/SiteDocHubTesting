@@ -55,7 +55,11 @@ const PdfUploadZone = ({ jobId, floorId, floorName }: UploadZoneProps) => {
   };
 
   return (
-    <div className="relative h-full w-full blueprint-grid grid place-items-center">
+    <div
+      data-testid="floor-plan-root"
+      data-floor-plan-state="upload-pdf"
+      className="relative h-full w-full blueprint-grid grid place-items-center"
+    >
       <div
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
         onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
@@ -146,7 +150,6 @@ const FloorPlanCanvas = () => {
   const placementMode = useAppStore((s) => s.placementMode);
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const addPin = useAppStore((s) => s.addPin);
-  const renamePin = useAppStore((s) => s.renamePin);
   const role = useAuthStore((s) => s.role);
 
   const { imageUrl: pdfImageUrl, loading: pdfLoading, error: pdfError } = usePdfRenderer(floor?.pdfUrl);
@@ -154,7 +157,7 @@ const FloorPlanCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [hover, setHover] = useState<string | null>(null);
-  const [draftPin, setDraftPin] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
   const [draftName, setDraftName] = useState("");
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
@@ -162,7 +165,11 @@ const FloorPlanCanvas = () => {
   // Empty state — no job selected
   if (!job || !floor) {
     return (
-      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+      <div
+        data-testid="floor-plan-root"
+        data-floor-plan-state="empty"
+        className="relative h-full w-full blueprint-grid grid place-items-center"
+      >
         <div className="text-center px-6">
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
             <Maximize2 className="h-6 w-6" />
@@ -180,7 +187,11 @@ const FloorPlanCanvas = () => {
       return <PdfUploadZone jobId={job.id} floorId={floor.id} floorName={floor.name} />;
     }
     return (
-      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+      <div
+        data-testid="floor-plan-root"
+        data-floor-plan-state="no-pdf"
+        className="relative h-full w-full blueprint-grid grid place-items-center"
+      >
         <div className="text-center px-6">
           <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full border border-dashed border-hairline text-ink-muted">
             <Maximize2 className="h-6 w-6" />
@@ -195,22 +206,14 @@ const FloorPlanCanvas = () => {
   // PDF is loading
   if (pdfLoading) {
     return (
-      <div className="relative h-full w-full blueprint-grid grid place-items-center">
+      <div
+        data-testid="floor-plan-root"
+        data-floor-plan-state="loading"
+        className="relative h-full w-full blueprint-grid grid place-items-center"
+      >
         <div className="text-center">
           <Loader2 className="mx-auto h-8 w-8 text-accent animate-spin" />
           <p className="mt-3 font-display text-sm text-ink">Rendering floor plan…</p>
-        </div>
-      </div>
-    );
-  }
-
-  // PDF render error
-  if (pdfError) {
-    return (
-      <div className="relative h-full w-full blueprint-grid grid place-items-center">
-        <div className="text-center px-6">
-          <p className="font-display text-sm text-ink">Failed to render floor plan</p>
-          <p className="mt-1 text-xs text-ink-secondary">{pdfError}</p>
         </div>
       </div>
     );
@@ -221,13 +224,17 @@ const FloorPlanCanvas = () => {
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
-    const id = addPin(job.id, floor.id, { name: `Pin ${floor.pins.length + 1}`, x, y });
-    setDraftPin({ id, x, y });
-    setDraftName(`Pin ${floor.pins.length + 1}`);
+    
+    // Check if we are creating a draft pin or immediately saving it
+    setDraftPin({ x, y });
   };
 
   return (
-    <div className="relative h-full w-full blueprint-grid">
+    <div
+      data-testid="floor-plan-root"
+      data-floor-plan-state="ready"
+      className="relative h-full w-full blueprint-grid"
+    >
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
@@ -236,16 +243,23 @@ const FloorPlanCanvas = () => {
           placementMode && "cursor-crosshair shadow-[inset_0_0_0_2px_hsl(var(--accent))]",
         )}
         style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+        data-testid="floor-plan-canvas"
       >
         {/* Rendered PDF as background image */}
-        {pdfImageUrl && (
+        {pdfImageUrl && !pdfError ? (
           <img
             src={pdfImageUrl}
             alt="Floor plan"
             className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
             draggable={false}
           />
-        )}
+        ) : pdfError ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/20 pointer-events-none">
+            <p className="font-display font-medium text-ink">Failed to render floor plan</p>
+            <p className="mt-1 text-xs text-ink-secondary">{pdfError}</p>
+            <p className="mt-2 text-xs text-ink-muted">You can still tap anywhere to place a pin.</p>
+          </div>
+        ) : null}
 
         {/* Pin overlay */}
         <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full pointer-events-none" preserveAspectRatio="xMidYMid meet">
@@ -314,11 +328,22 @@ const FloorPlanCanvas = () => {
               onChange={(e) => setDraftName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  if (floor) renamePin(job.id, floor.id, draftPin.id, draftName.trim() || "New Pin");
-                  toast.success(`Pin "${draftName}" placed`);
+                  if (floor) {
+                    const finalName = draftName.trim() || "New Pin";
+                    addPin(job.id, floor.id, {
+                      name: finalName,
+                      x: draftPin.x,
+                      y: draftPin.y,
+                    });
+                    toast.success(`Pin "${finalName}" placed`);
+                  }
                   setDraftPin(null);
+                  setDraftName("");
                 }
-                if (e.key === "Escape") setDraftPin(null);
+                if (e.key === "Escape") {
+                  setDraftPin(null);
+                  setDraftName("");
+                }
               }}
               placeholder="Pin name…"
               className="w-44 rounded bg-base px-2 py-1 text-sm text-ink outline-none"

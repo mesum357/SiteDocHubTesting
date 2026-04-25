@@ -6,6 +6,7 @@
 // =============================================================================
 
 export type UserRole = "field_worker" | "office_staff" | "admin";
+export type UserStatus = "pending" | "approved" | "rejected" | "banned";
 
 export const ROLES = {
   FIELD_WORKER: "field_worker" as UserRole,
@@ -109,4 +110,11 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   field_worker: "Field Worker",
   office_staff: "Office Staff",
   admin: "Admin",
+};
+
+export const STATUS_LABELS: Record<UserStatus, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  rejected: "Rejected",
+  banned: "Banned",
 };
