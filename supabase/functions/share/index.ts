@@ -5,16 +5,23 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")! // service role — bypasses RLS for read
 );
 
+function corsHeaders(req: Request) {
+  const requested =
+    req.headers.get("access-control-request-headers") ??
+    "Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, prefer";
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": requested,
+  } as const;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-      },
+      headers: corsHeaders(req),
     });
   }
 
@@ -24,7 +31,7 @@ Deno.serve(async (req) => {
   if (!token) {
     return new Response(JSON.stringify({ error: "Missing token" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -38,7 +45,7 @@ Deno.serve(async (req) => {
   if (shareError || !share) {
     return new Response(JSON.stringify({ error: "Invalid or expired link" }), {
       status: 404,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
   if (share.expires_at && new Date(share.expires_at) < new Date()) {
     return new Response(JSON.stringify({ error: "This link has expired" }), {
       status: 410,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -121,7 +128,7 @@ Deno.serve(async (req) => {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+        ...corsHeaders(req),
       },
     }
   );

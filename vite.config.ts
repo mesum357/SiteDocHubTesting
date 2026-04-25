@@ -66,7 +66,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       devOptions: {
-        enabled: true,
+        // Keep SW off in local dev to avoid dev-sw/workbox interception noise.
+        enabled: false,
       },
     }),
   ],
