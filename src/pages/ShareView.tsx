@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, Loader2, AlertTriangle, Maximize } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import PanoramaViewer from "@/components/site/PanoramaViewer";
 import { getCachedPinPhoto } from "@/lib/db";
+import { usePdfRenderer } from "@/hooks/usePdfRenderer";
 
 interface SharePin {
   id: string;
@@ -51,7 +52,9 @@ const ShareView = () => {
   const [floors, setFloors] = useState<ShareFloor[]>([]);
   const [pins, setPins] = useState<SharePin[]>([]);
   const [activeFloorId, setActiveFloorId] = useState("");
+  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [viewerPin, setViewerPin] = useState<{ name: string; url: string } | null>(null);
+  const pinCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!token) { setStatus("error"); setErrorMsg("No share token provided"); return; }
@@ -92,6 +95,7 @@ const ShareView = () => {
         setFloors(data.floors || []);
         setPins(pinsWithLocalFirst);
         setActiveFloorId(data.floors?.[0]?.id || "");
+        setSelectedPinId(null);
         setStatus("ready");
       } catch (err: unknown) {
         if (!mounted) return;
@@ -111,6 +115,29 @@ const ShareView = () => {
   const activeFloor = floors.find((f) => f.id === activeFloorId);
   const floorPins = pins.filter((p) => p.floor_id === activeFloorId);
   const totalFilled = pins.filter((p) => p.photoUrl).length;
+  const {
+    imageUrl: floorMapImageUrl,
+    loading: floorMapLoading,
+    error: floorMapError,
+  } = usePdfRenderer(activeFloor?.pdfUrl || undefined);
+
+  useEffect(() => {
+    if (!floorPins.length) {
+      setSelectedPinId(null);
+      return;
+    }
+    setSelectedPinId((current) => {
+      if (current && floorPins.some((p) => p.id === current)) return current;
+      return floorPins[0].id;
+    });
+  }, [activeFloorId, floorPins]);
+
+  useEffect(() => {
+    if (!selectedPinId) return;
+    const node = pinCardRefs.current[selectedPinId];
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedPinId]);
 
   if (status === "loading") {
     return (
@@ -182,45 +209,150 @@ const ShareView = () => {
         </div>
       </div>
 
-      {/* Pin grid */}
+      {/* Floor map + pin list */}
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
-        {floorPins.length === 0 ? (
-          <div className="py-16 text-center text-sm text-ink-secondary">No pins on this floor.</div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {floorPins.map((pin) => (
-              <div key={pin.id} className="group overflow-hidden rounded-lg border border-hairline bg-surface transition-shadow hover:shadow-lg">
-                {pin.photoUrl ? (
-                  <div className="relative">
-                    <img src={pin.photoUrl} alt={pin.name} className="h-48 w-full object-cover" />
-                    <div className="absolute inset-0 grid place-items-center bg-base/60 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        onClick={() => setViewerPin({ name: pin.name, url: pin.photoUrl! })}
-                        className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
-                      >
-                        <Maximize className="h-3.5 w-3.5" /> View 360°
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid h-32 place-items-center bg-elevated">
-                    <div className="text-center">
-                      <Camera className="mx-auto h-6 w-6 text-ink-muted" />
-                      <p className="mt-2 text-[11px] text-ink-secondary">No preview available yet</p>
-                    </div>
-                  </div>
-                )}
-                <div className="p-3">
-                  <div className="font-display text-sm font-medium text-ink">{pin.name}</div>
-                  <div className="mt-1 font-mono-data text-[10px] text-ink-secondary">{formatTime(pin.photo_taken_at)}</div>
-                  {pin.note && (
-                    <div className="mt-2 rounded-md bg-elevated p-2 text-xs text-ink-secondary whitespace-pre-wrap">{pin.note}</div>
-                  )}
+        <div className="grid gap-4 lg:grid-cols-[1.3fr,0.9fr]">
+          <div className="rounded-lg border border-hairline bg-surface p-3">
+            {!activeFloor?.pdfUrl ? (
+              <div className="grid h-[420px] place-items-center rounded-md bg-elevated text-center text-sm text-ink-secondary">
+                <div>
+                  <p className="font-display text-ink">No floor map available</p>
+                  <p className="mt-1 text-xs text-ink-secondary">This floor has no uploaded blueprint.</p>
                 </div>
               </div>
-            ))}
+            ) : floorMapLoading ? (
+              <div className="grid h-[420px] place-items-center rounded-md bg-elevated text-center text-sm text-ink-secondary">
+                <div>
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-accent" />
+                  <p className="mt-2 font-display text-ink">Rendering floor map…</p>
+                </div>
+              </div>
+            ) : floorMapError || !floorMapImageUrl ? (
+              <div className="grid h-[420px] place-items-center rounded-md bg-elevated text-center text-sm text-ink-secondary">
+                <div>
+                  <p className="font-display text-ink">Failed to render floor map</p>
+                  <p className="mt-1 text-xs text-ink-secondary">{floorMapError ?? "Try again later."}</p>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="relative h-[420px] overflow-hidden rounded-md bg-elevated"
+                data-testid="share-floor-map"
+              >
+                <img
+                  src={floorMapImageUrl}
+                  alt={`${activeFloor.label} map`}
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+
+                <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+                  {floorPins.map((pin) => {
+                    const cx = pin.x_pct * 1000;
+                    const cy = pin.y_pct * 700;
+                    const selected = pin.id === selectedPinId;
+                    return (
+                      <g
+                        key={pin.id}
+                        transform={`translate(${cx} ${cy})`}
+                        className="cursor-pointer"
+                        data-testid={`share-map-marker-${pin.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPinId(pin.id);
+                        }}
+                        style={{
+                          transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)",
+                          transform: `translate(${cx}px, ${cy}px) scale(${selected ? 1.25 : 1})`,
+                        }}
+                      >
+                        <circle
+                          r="11"
+                          fill={pin.photoUrl ? "hsl(var(--green))" : "hsl(var(--bg-base))"}
+                          stroke={selected ? "hsl(var(--accent))" : "hsl(var(--hairline))"}
+                          strokeWidth={selected ? 3 : 2}
+                        />
+                        {pin.photoUrl ? (
+                          <path
+                            d="M -4 0 L -1 3 L 4 -3"
+                            fill="none"
+                            stroke="hsl(var(--bg-base))"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        ) : (
+                          <circle r="3" fill="hsl(var(--accent))" />
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            )}
           </div>
-        )}
+
+          <div className="rounded-lg border border-hairline bg-surface">
+            <div className="border-b border-hairline px-3 py-2">
+              <p className="font-display text-sm text-ink">Pins on {activeFloor?.label ?? "floor"}</p>
+            </div>
+            {floorPins.length === 0 ? (
+              <div className="py-16 text-center text-sm text-ink-secondary">No pins on this floor.</div>
+            ) : (
+              <div className="max-h-[420px] space-y-2 overflow-y-auto p-3">
+                {floorPins.map((pin) => {
+                  const selected = pin.id === selectedPinId;
+                  return (
+                    <div
+                      key={pin.id}
+                      data-testid={`share-pin-card-${pin.id}`}
+                      data-pin-id={pin.id}
+                      data-selected={selected ? "true" : "false"}
+                      ref={(node) => {
+                        pinCardRefs.current[pin.id] = node;
+                      }}
+                      onClick={() => setSelectedPinId(pin.id)}
+                      className={cn(
+                        "group cursor-pointer overflow-hidden rounded-lg border border-hairline bg-surface transition-shadow hover:shadow-lg",
+                        selected && "border-accent shadow-[0_0_0_1px_hsl(var(--accent))]"
+                      )}
+                    >
+                      {pin.photoUrl ? (
+                        <div className="relative">
+                          <img src={pin.photoUrl} alt={pin.name} className="h-36 w-full object-cover" />
+                          <div className="absolute inset-0 grid place-items-center bg-base/60 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewerPin({ name: pin.name, url: pin.photoUrl! });
+                              }}
+                              className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
+                            >
+                              <Maximize className="h-3.5 w-3.5" /> View 360°
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid h-28 place-items-center bg-elevated">
+                          <div className="text-center">
+                            <Camera className="mx-auto h-6 w-6 text-ink-muted" />
+                            <p className="mt-2 text-[11px] text-ink-secondary">No preview available yet</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-3">
+                        <div className="font-display text-sm font-medium text-ink">{pin.name}</div>
+                        <div className="mt-1 font-mono-data text-[10px] text-ink-secondary">{formatTime(pin.photo_taken_at)}</div>
+                        {pin.note && (
+                          <div className="mt-2 rounded-md bg-elevated p-2 text-xs text-ink-secondary whitespace-pre-wrap">{pin.note}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Footer */}

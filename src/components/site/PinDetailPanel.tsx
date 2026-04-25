@@ -58,6 +58,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const [notesFocused, setNotesFocused] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [captureErrorMsg, setCaptureErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -83,12 +84,14 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
     if (!pin || !floor || !job) return;
 
     if (!cameraConnected) {
-      toast.info(`${connectionHint} Or choose a file manually.`);
-      fileRef.current?.click();
+      const msg = "Insta360 not connected. Connect camera WiFi first.";
+      setCaptureErrorMsg(msg);
+      toast.error(msg);
       return;
     }
 
     setCapturing(true);
+    setCaptureErrorMsg(null);
 
     const blob = await triggerCapture();
     if (blob) {
@@ -101,9 +104,9 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
         toast.error("Failed to upload captured photo");
       }
     } else {
-      // Camera not available — fallback to manual picker.
-      toast.error("Camera capture failed. Choose a photo from your device.");
-      fileRef.current?.click();
+      const msg = "Camera capture failed. Check camera connection and try again.";
+      setCaptureErrorMsg(msg);
+      toast.error(msg);
     }
     setCapturing(false);
   };
@@ -249,6 +252,11 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                 connectionHint
               )}
             </div>
+            {captureErrorMsg && (
+              <div className="mt-1 text-center text-[10px] font-medium text-red-500">
+                {captureErrorMsg}
+              </div>
+            )}
           </div>
 
           {/* Upload button */}

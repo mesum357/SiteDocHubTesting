@@ -2,35 +2,46 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 type Role = "field_worker" | "office_staff" | "admin";
 
-function json(status: number, body: unknown) {
+function corsHeaders(req: Request) {
+  const requested =
+    req.headers.get("access-control-request-headers") ??
+    "Content-Type, Authorization, apikey, x-client-info, x-supabase-api-version, prefer";
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": requested,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  } as const;
+}
+
+function json(req: Request, status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, content-type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      ...corsHeaders(req),
     },
   });
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return json(204, null);
-  if (req.method !== "POST") return json(405, { error: "Method not allowed" });
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { ...corsHeaders(req) } });
+  }
+  if (req.method !== "POST") return json(req, 405, { error: "Method not allowed" });
 
   const { jobId } = (await req.json().catch(() => ({}))) as { jobId?: string };
-  if (!jobId) return json(400, { error: "Missing jobId" });
+  if (!jobId) return json(req, 400, { error: "Missing jobId" });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   if (!supabaseUrl || !serviceKey || !anonKey) {
-    return json(500, { error: "Server misconfigured" });
+    return json(req, 500, { error: "Server misconfigured" });
   }
 
   const authHeader = req.headers.get("authorization") ?? "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) {
-    return json(401, { error: "Missing auth" });
+    return json(req, 401, { error: "Missing auth" });
   }
 
   // Use anon client to validate the caller, then service client for deletion.
@@ -44,18 +55,18 @@ Deno.serve(async (req) => {
 
   const { data: userData, error: userErr } = await userClient.auth.getUser();
   const user = userData?.user;
-  if (userErr || !user) return json(401, { error: "Invalid auth" });
+  if (userErr || !user) return json(req, 401, { error: "Invalid auth" });
 
   const { data: profile, error: profErr } = await svc
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
-  if (profErr || !profile) return json(403, { error: "Forbidden" });
+  if (profErr || !profile) return json(req, 403, { error: "Forbidden" });
 
   const role = profile.role as Role;
   if (role !== "admin" && role !== "office_staff") {
-    return json(403, { error: "Forbidden" });
+    return json(req, 403, { error: "Forbidden" });
   }
 
   // Collect storage paths before deletion.
@@ -90,8 +101,8 @@ Deno.serve(async (req) => {
 
   // Delete the job (DB cascades: floors/pins/shares).
   const { error: delErr } = await svc.from("jobs").delete().eq("id", jobId);
-  if (delErr) return json(500, { error: delErr.message });
+  if (delErr) return json(req, 500, { error: delErr.message });
 
-  return json(200, { ok: true });
+  return json(req, 200, { ok: true });
 });
 

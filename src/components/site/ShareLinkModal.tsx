@@ -3,6 +3,7 @@ import { Check, Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useActiveJob } from "@/store/useAppStore";
 import { supabase } from "@/lib/supabaseClient";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 
 interface Props { open: boolean; onOpenChange: (b: boolean) => void }
 
@@ -58,7 +59,20 @@ const ShareLinkModal = ({ open, onOpenChange }: Props) => {
         throw lastError instanceof Error ? lastError : new Error("Failed to generate share token");
       } catch (err: unknown) {
         console.error("[SiteDocHB] Share token error:", err);
-        setError("Failed to generate share link. Please try again.");
+        let message = "Failed to generate share link. Please try again.";
+        if (err instanceof FunctionsHttpError) {
+          try {
+            const payload = await err.context.json();
+            if (payload?.error && typeof payload.error === "string") {
+              message = payload.error;
+            }
+          } catch {
+            // Ignore parse errors and keep default message.
+          }
+        } else if (err instanceof Error && err.message) {
+          message = err.message;
+        }
+        setError(message);
         setShareUrl("");
       } finally {
         setLoading(false);

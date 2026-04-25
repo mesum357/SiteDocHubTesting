@@ -57,12 +57,44 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Fetch job
-  const { data: job } = await supabase
+  // Fetch job (support both schema variants: created_date vs created_at)
+  let job: {
+    id: string;
+    name: string;
+    description: string | null;
+    created_date: string | null;
+  } | null = null;
+
+  const jobWithDate = await supabase
     .from("jobs")
     .select("id, name, description, created_date")
     .eq("id", share.job_id)
-    .single();
+    .maybeSingle();
+
+  if (!jobWithDate.error && jobWithDate.data) {
+    job = {
+      id: jobWithDate.data.id as string,
+      name: jobWithDate.data.name as string,
+      description: (jobWithDate.data.description as string | null) ?? "",
+      created_date: (jobWithDate.data.created_date as string | null) ?? null,
+    };
+  } else {
+    const jobWithCreatedAt = await supabase
+      .from("jobs")
+      .select("id, name, description, created_at")
+      .eq("id", share.job_id)
+      .maybeSingle();
+
+    if (!jobWithCreatedAt.error && jobWithCreatedAt.data) {
+      const createdAt = jobWithCreatedAt.data.created_at as string | null;
+      job = {
+        id: jobWithCreatedAt.data.id as string,
+        name: jobWithCreatedAt.data.name as string,
+        description: (jobWithCreatedAt.data.description as string | null) ?? "",
+        created_date: createdAt ? new Date(createdAt).toISOString().slice(0, 10) : null,
+      };
+    }
+  }
 
   // Fetch floors ordered by floor_order
   const { data: floors } = await supabase

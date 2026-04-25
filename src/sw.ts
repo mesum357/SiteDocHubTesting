@@ -8,6 +8,14 @@ import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from "workbox-strategi
 import { ExpirationPlugin } from "workbox-expiration";
 
 declare const self: ServiceWorkerGlobalScope;
+declare global {
+  interface ServiceWorkerGlobalScope {
+    __WB_DISABLE_DEV_LOGS?: boolean;
+  }
+}
+
+// Keep Workbox routing debug logs out of the console.
+self.__WB_DISABLE_DEV_LOGS = true;
 
 /** Supabase signed URLs embed a short-lived JWT; they must not use cache-first SW strategies. */
 function isSignedObjectUrl(url: URL): boolean {
