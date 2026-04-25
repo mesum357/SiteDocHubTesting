@@ -206,32 +206,42 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
 
-      // Assemble structure
-      const jobs: Job[] = jobRows.map((j) => ({
-        id: j.id,
-        name: j.name,
-        description: j.description ?? "",
-        createdAt: j.created_at,
-        archived: j.archived,
-        floors: floorRows
-          .filter((f) => f.job_id === j.id)
-          .map((f) => ({
-            id: f.id,
-            name: f.label,
-            pdfUrl: f.pdf_path ? pdfUrlMap.get(f.pdf_path) : undefined,
-            pins: pinRows
-              .filter((p) => p.floor_id === f.id)
-              .map((p) => ({
-                id: p.id,
-                name: p.name,
-                x: p.x_pct,
-                y: p.y_pct,
-                photoUrl: p.photo_path ? photoUrlMap.get(p.photo_path) : undefined,
-                notes: p.note ?? undefined,
-                capturedAt: p.photo_taken_at ?? undefined,
-              })),
-          })),
-      }));
+      // Assemble structure (local cached photo first, then signed URL fallback)
+      const jobs: Job[] = await Promise.all(
+        jobRows.map(async (j) => ({
+          id: j.id,
+          name: j.name,
+          description: j.description ?? "",
+          createdAt: j.created_at,
+          archived: j.archived,
+          floors: await Promise.all(
+            floorRows
+              .filter((f) => f.job_id === j.id)
+              .map(async (f) => ({
+                id: f.id,
+                name: f.label,
+                pdfUrl: f.pdf_path ? pdfUrlMap.get(f.pdf_path) : undefined,
+                pins: await Promise.all(
+                  pinRows
+                    .filter((p) => p.floor_id === f.id)
+                    .map(async (p) => {
+                      const localBlob = await getCachedPinPhoto(p.id);
+                      const remoteUrl = p.photo_path ? photoUrlMap.get(p.photo_path) : undefined;
+                      return {
+                        id: p.id,
+                        name: p.name,
+                        x: p.x_pct,
+                        y: p.y_pct,
+                        photoUrl: localBlob ? URL.createObjectURL(localBlob) : remoteUrl,
+                        notes: p.note ?? undefined,
+                        capturedAt: p.photo_taken_at ?? undefined,
+                      };
+                    })
+                ),
+              }))
+          ),
+        }))
+      );
 
       // Cache photos locally if online (optional, maybe too heavy for bulk)
       // For now, only cache on capture/upload

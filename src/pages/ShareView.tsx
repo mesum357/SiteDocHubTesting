@@ -4,6 +4,7 @@ import { Camera, Loader2, AlertTriangle, Maximize } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import PanoramaViewer from "@/components/site/PanoramaViewer";
+import { getCachedPinPhoto } from "@/lib/db";
 
 interface SharePin {
   id: string;
@@ -55,6 +56,9 @@ const ShareView = () => {
   useEffect(() => {
     if (!token) { setStatus("error"); setErrorMsg("No share token provided"); return; }
 
+    let mounted = true;
+    const localObjectUrls: string[] = [];
+
     const fetchData = async () => {
       try {
         const res = await supabase.functions.invoke("share", {
@@ -75,18 +79,38 @@ const ShareView = () => {
           throw new Error(data.error || "Failed to load shared job");
         }
 
+        const rawPins: SharePin[] = data.pins || [];
+        const pinsWithLocalFirst = await Promise.all(
+          rawPins.map(async (pin) => {
+            const localBlob = await getCachedPinPhoto(pin.id);
+            if (localBlob) {
+              const localUrl = URL.createObjectURL(localBlob);
+              localObjectUrls.push(localUrl);
+              return { ...pin, photoUrl: localUrl };
+            }
+            return pin;
+          })
+        );
+
+        if (!mounted) return;
         setJob(data.job);
         setFloors(data.floors || []);
-        setPins(data.pins || []);
+        setPins(pinsWithLocalFirst);
         setActiveFloorId(data.floors?.[0]?.id || "");
         setStatus("ready");
       } catch (err: any) {
+        if (!mounted) return;
         setStatus("error");
         setErrorMsg(err.message || "Something went wrong");
       }
     };
 
     fetchData();
+
+    return () => {
+      mounted = false;
+      localObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
   }, [token]);
 
   const activeFloor = floors.find((f) => f.id === activeFloorId);
@@ -185,7 +209,10 @@ const ShareView = () => {
                   </div>
                 ) : (
                   <div className="grid h-32 place-items-center bg-elevated">
-                    <Camera className="h-6 w-6 text-ink-muted" />
+                    <div className="text-center">
+                      <Camera className="mx-auto h-6 w-6 text-ink-muted" />
+                      <p className="mt-2 text-[11px] text-ink-secondary">No preview available yet</p>
+                    </div>
                   </div>
                 )}
                 <div className="p-3">

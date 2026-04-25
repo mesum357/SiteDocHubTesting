@@ -80,10 +80,19 @@ Deno.serve(async (req) => {
       async (pin: { photo_path: string | null; [key: string]: unknown }) => {
         let photoUrl = null;
         if (pin.photo_path) {
-          const { data } = await supabase.storage
-            .from("site-photos")
+          // Current uploads use "pin-photos"; fallback to legacy "site-photos".
+          const { data: pinPhotosData, error: pinPhotosError } = await supabase.storage
+            .from("pin-photos")
             .createSignedUrl(pin.photo_path, 3600);
-          photoUrl = data?.signedUrl ?? null;
+
+          if (!pinPhotosError && pinPhotosData?.signedUrl) {
+            photoUrl = pinPhotosData.signedUrl;
+          } else {
+            const { data: legacyData } = await supabase.storage
+              .from("site-photos")
+              .createSignedUrl(pin.photo_path, 3600);
+            photoUrl = legacyData?.signedUrl ?? null;
+          }
         }
         return { ...pin, photoUrl };
       }
