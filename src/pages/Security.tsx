@@ -17,6 +17,45 @@ function getErrMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+async function assertWritableStorage() {
+  if (!("storage" in navigator) || !navigator.storage?.estimate) return;
+  const estimate = await navigator.storage.estimate();
+  const quota = estimate.quota ?? 0;
+  const usage = estimate.usage ?? 0;
+  // Keep a small safety buffer so auth/session writes don't fail.
+  const free = quota - usage;
+  const minFreeBytes = 8 * 1024 * 1024; // 8MB
+  if (quota > 0 && free < minFreeBytes) {
+    throw new Error(
+      "Device/browser storage is full. Free some space and retry account updates."
+    );
+  }
+}
+
+function toUserFriendlyError(err: unknown, fallback: string) {
+  const raw = getErrMessage(err, fallback);
+  const lower = raw.toLowerCase();
+
+  if (
+    lower.includes("file_error_no_space") ||
+    lower.includes("no_space") ||
+    lower.includes("quota")
+  ) {
+    return "Your browser storage is full. Free up storage and try again.";
+  }
+  if (lower.includes("invalid login credentials")) {
+    return "Current password is incorrect.";
+  }
+  if (lower.includes("same as the old password")) {
+    return "New password must be different from your current password.";
+  }
+  if (lower.includes("new email address should be different")) {
+    return "New email must be different from your current email.";
+  }
+
+  return raw;
+}
+
 export default function Security() {
   const user = useAuthStore((s) => s.user);
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name ?? "");
@@ -32,6 +71,7 @@ export default function Security() {
 
   const reauthenticate = async (password: string) => {
     if (!user?.email) throw new Error("No authenticated email found.");
+    await assertWritableStorage();
     const { error } = await supabase.auth.signInWithPassword({
       email: user.email,
       password,
@@ -58,6 +98,7 @@ export default function Security() {
     }
     setSavingName(true);
     try {
+      await assertWritableStorage();
       await reauthenticate(currentPasswordForName);
       const { error: authErr } = await supabase.auth.updateUser({
         data: { full_name: nextName },
@@ -73,7 +114,7 @@ export default function Security() {
       toast.success("Name updated.");
       setCurrentPasswordForName("");
     } catch (err: unknown) {
-      const message = getErrMessage(err, "Failed to update name.");
+      const message = toUserFriendlyError(err, "Failed to update name.");
       toast.error(message);
     } finally {
       setSavingName(false);
@@ -99,6 +140,7 @@ export default function Security() {
     }
     setSavingEmail(true);
     try {
+      await assertWritableStorage();
       await reauthenticate(currentPasswordForEmail);
       const { error } = await supabase.auth.updateUser({ email: normalizedEmail });
       if (error) throw error;
@@ -106,7 +148,7 @@ export default function Security() {
       setCurrentPasswordForEmail("");
       setNewEmail(normalizedEmail);
     } catch (err: unknown) {
-      const message = getErrMessage(err, "Failed to update email.");
+      const message = toUserFriendlyError(err, "Failed to update email.");
       toast.error(message);
     } finally {
       setSavingEmail(false);
@@ -133,6 +175,7 @@ export default function Security() {
     }
     setSavingPassword(true);
     try {
+      await assertWritableStorage();
       await reauthenticate(currentPasswordForPassword);
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
@@ -141,7 +184,7 @@ export default function Security() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: unknown) {
-      const message = getErrMessage(err, "Failed to update password.");
+      const message = toUserFriendlyError(err, "Failed to update password.");
       toast.error(message);
     } finally {
       setSavingPassword(false);
