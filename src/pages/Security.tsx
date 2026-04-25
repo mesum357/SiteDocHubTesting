@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { createClient } from "@supabase/supabase-js";
 
 function getErrMessage(err: unknown, fallback: string) {
   if (err && typeof err === "object" && "message" in err) {
@@ -71,12 +72,30 @@ export default function Security() {
 
   const reauthenticate = async (password: string) => {
     if (!user?.email) throw new Error("No authenticated email found.");
-    await assertWritableStorage();
-    const { error } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password,
+
+    // IMPORTANT: verify password using an ephemeral, in-memory client so we don't
+    // disrupt the active session or depend on browser storage for session writes.
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const supabaseKey =
+      (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ??
+      (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined);
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Supabase is not configured (missing env vars).");
+    }
+
+    const ephemeral = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
     });
-    if (error) throw new Error("Current password is incorrect.");
+
+    const { error } = await ephemeral.auth.signInWithPassword({
+      email: user.email,
+      password: password,
+    });
+    if (error) throw error;
   };
 
   const handleNameUpdate = async (e: FormEvent) => {
@@ -150,7 +169,10 @@ export default function Security() {
     try {
       await assertWritableStorage();
       await reauthenticate(currentPasswordForEmail);
-      const { error } = await supabase.auth.updateUser({ email: normalizedEmail });
+      const { error } = await supabase.auth.updateUser(
+        { email: normalizedEmail },
+        { emailRedirectTo: window.location.origin }
+      );
       if (error) throw error;
       toast.success("Email update requested. Please verify your new email.");
       setCurrentPasswordForEmail("");
