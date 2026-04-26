@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { X } from "lucide-react";
+import { Maximize, Minus, Plus, X } from "lucide-react";
 import { createPortal } from "react-dom";
 
 interface Props {
@@ -14,6 +14,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [heading, setHeading] = useState(0);
+  const [zoom, setZoom] = useState(1);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const dragStateRef = useRef<{ dragging: boolean; startX: number; startOffset: number }>({
@@ -58,7 +59,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  const renderedHeight = viewportHeight > 0 ? Math.round(viewportHeight * 1.35) : 0;
+  const renderedHeight = viewportHeight > 0 ? Math.round(viewportHeight * 1.35 * zoom) : 0;
 
   const renderedWidth =
     renderedHeight > 0 && imageSize.width > 0 && imageSize.height > 0
@@ -67,11 +68,13 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
 
   useEffect(() => {
     if (viewportHeight <= 0 || imageSize.width <= 0 || imageSize.height <= 0) return;
-    setOffsetX(0);
+    const maxScrollX = Math.max(renderedWidth - viewportWidth, 0);
     const maxScrollY = Math.max(renderedHeight - viewportHeight, 0);
+    // Start centered on open so the view corresponds to roughly 180deg heading.
+    setOffsetX(-maxScrollX / 2);
     // Start centered vertically so users can look both up (sky) and down (ground).
     setOffsetY(-maxScrollY / 2);
-  }, [viewportHeight, imageSize.width, imageSize.height, renderedHeight]);
+  }, [viewportHeight, viewportWidth, imageSize.width, imageSize.height, renderedHeight, renderedWidth]);
 
   useEffect(() => {
     const maxScroll = Math.max(renderedWidth - viewportWidth, 0);
@@ -165,6 +168,30 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       </div>
       <div className="absolute right-16 top-[max(12px,env(safe-area-inset-top))] z-[130] rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-sm">
         {heading}&deg;
+      </div>
+      <div className="absolute bottom-4 right-4 z-[130] flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-1 text-white backdrop-blur-sm">
+        <button
+          onClick={() => setZoom((z) => Math.max(1, +(z - 0.1).toFixed(2)))}
+          aria-label="Zoom out panorama"
+          className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+        <span className="px-1 font-mono-data text-[11px] tabular-nums">{Math.round(zoom * 100)}%</span>
+        <button
+          onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.1).toFixed(2)))}
+          aria-label="Zoom in panorama"
+          className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => setZoom(1)}
+          aria-label="Reset panorama zoom"
+          className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-white/10"
+        >
+          <Maximize className="h-3.5 w-3.5" />
+        </button>
       </div>
       <div
         ref={viewportRef}

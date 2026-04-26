@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, useDragControls } from "framer-motion";
-import { useAppStore, useActiveFloor, useActiveJob } from "@/store/useAppStore";
-import { useAuthStore } from "@/store/useAuthStore";
-import { canPerform } from "@/lib/permissions";
+import { useAppStore, useActiveFloor } from "@/store/useAppStore";
 import PinDetailPanel from "./PinDetailPanel";
 import { cn } from "@/lib/utils";
 import { useCachedPinPhotoUrl } from "@/hooks/useCachedPinPhotoUrl";
@@ -11,17 +9,11 @@ const COLLAPSED_HEIGHT = "44px"; // larger grab area for easier swipe
 const EXPANDED_HEIGHT = "70vh";
 
 const MobileBottomSheet = () => {
-  const job = useActiveJob();
   const floor = useActiveFloor();
   const selectedPinId = useAppStore((s) => s.selectedPinId);
   const selectPin = useAppStore((s) => s.selectPin);
-  const togglePlacement = useAppStore((s) => s.togglePlacement);
-  const addFloor = useAppStore((s) => s.addFloor);
-  const role = useAuthStore((s) => s.role);
 
   const [expanded, setExpanded] = useState(false);
-  const [addingFloor, setAddingFloor] = useState(false);
-  const [floorDraft, setFloorDraft] = useState("");
   const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
@@ -68,33 +60,6 @@ const MobileBottomSheet = () => {
             <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
               <div className="mb-2 flex items-center justify-between px-1">
                 <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
-                <div className="flex items-center gap-2">
-                  {canPerform(role, "CREATE_FLOOR") &&
-                    (addingFloor ? (
-                      <input
-                        autoFocus
-                        value={floorDraft}
-                        onChange={(e) => setFloorDraft(e.target.value)}
-                        onBlur={() => {
-                          if (job && floorDraft.trim()) addFloor(job.id, floorDraft.trim());
-                          setAddingFloor(false);
-                          setFloorDraft("");
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          if (e.key === "Escape") {
-                            setAddingFloor(false);
-                            setFloorDraft("");
-                          }
-                        }}
-                        placeholder="Floor name"
-                        className="w-24 rounded-full border border-accent bg-elevated px-2 py-1 text-xs outline-none"
-                      />
-                    ) : (
-                      <button onClick={() => setAddingFloor(true)} className="text-xs font-medium text-accent">+ Floor</button>
-                    ))}
-                  <button onClick={() => togglePlacement(true)} className="text-xs font-medium text-accent">+ Place</button>
-                </div>
               </div>
               <ul className="space-y-1">
                 {floor?.pins.map((p) => (

@@ -55,7 +55,17 @@ const ShareView = () => {
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [viewerPin, setViewerPin] = useState<{ name: string; url: string } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const pinCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
+  const panStateRef = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    startPanX: 0,
+    startPanY: 0,
+  });
+  const activePanPointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!token) { setStatus("error"); setErrorMsg("No share token provided"); return; }
@@ -142,6 +152,7 @@ const ShareView = () => {
 
   useEffect(() => {
     setZoom(1);
+    setPan({ x: 0, y: 0 });
   }, [activeFloorId]);
 
   const handleShareMapWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
@@ -153,6 +164,44 @@ const ShareView = () => {
       const next = z - delta * 0.08;
       return Math.min(2.5, Math.max(0.5, +next.toFixed(2)));
     });
+  };
+
+  const clampPan = (valueX: number, valueY: number) => {
+    const el = mapViewportRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const maxX = Math.max((rect.width * (zoom - 1)) / 2, 0);
+    const maxY = Math.max((rect.height * (zoom - 1)) / 2, 0);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, valueX)),
+      y: Math.max(-maxY, Math.min(maxY, valueY)),
+    };
+  };
+
+  const handleMapPanStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (zoom <= 1) return;
+    activePanPointerIdRef.current = e.pointerId;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    panStateRef.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPanX: pan.x,
+      startPanY: pan.y,
+    };
+  };
+
+  const handleMapPanMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePanPointerIdRef.current !== e.pointerId || !panStateRef.current.dragging) return;
+    const dx = e.clientX - panStateRef.current.startX;
+    const dy = e.clientY - panStateRef.current.startY;
+    setPan(clampPan(panStateRef.current.startPanX + dx, panStateRef.current.startPanY + dy));
+  };
+
+  const handleMapPanEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePanPointerIdRef.current !== e.pointerId) return;
+    activePanPointerIdRef.current = null;
+    panStateRef.current.dragging = false;
   };
 
   if (status === "loading") {
@@ -252,13 +301,18 @@ const ShareView = () => {
               </div>
             ) : (
               <div
+                ref={mapViewportRef}
                 className="relative h-[420px] overflow-hidden rounded-md bg-elevated"
                 data-testid="share-floor-map"
                 onWheel={handleShareMapWheel}
+                onPointerDown={handleMapPanStart}
+                onPointerMove={handleMapPanMove}
+                onPointerUp={handleMapPanEnd}
+                onPointerCancel={handleMapPanEnd}
               >
                 <div
-                  className="relative h-full w-full"
-                  style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+                  className={cn("relative h-full w-full", zoom > 1 && "cursor-grab active:cursor-grabbing touch-none")}
+                  style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
                 >
                   <img
                     src={floorMapImageUrl}

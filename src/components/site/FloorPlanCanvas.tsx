@@ -167,9 +167,20 @@ const FloorPlanCanvas = () => {
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
   const [draftName, setDraftName] = useState("");
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panStateRef = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    startPanX: 0,
+    startPanY: 0,
+  });
+  const panMovedRef = useRef(false);
+  const activePanPointerIdRef = useRef<number | null>(null);
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
   useEffect(() => { setHover(null); }, [floor?.id]);
+  useEffect(() => { setPan({ x: 0, y: 0 }); }, [floor?.id, zoom]);
   useEffect(() => {
     if (!job) return;
     void Promise.all(job.floors.map((f) => preloadPdfRender(f.pdfUrl)));
@@ -278,9 +289,18 @@ const FloorPlanCanvas = () => {
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!placementMode || !floor) return;
+    if (panMovedRef.current) {
+      panMovedRef.current = false;
+      return;
+    }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const localX = e.clientX - rect.left;
-    const localY = e.clientY - rect.top;
+    const rawX = e.clientX - rect.left;
+    const rawY = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    // Inverse of translate+scale transform so placement matches visible point while zoomed/panned.
+    const localX = (rawX - centerX - pan.x) / zoom + centerX;
+    const localY = (rawY - centerY - pan.y) / zoom + centerY;
 
     // Map click against the actual visible PDF area (object-contain), not full container.
     const px = localX - imageRect.left;
@@ -296,6 +316,46 @@ const FloorPlanCanvas = () => {
     setDraftPin({ x, y });
   };
 
+  const clampPan = (valueX: number, valueY: number) => {
+    const el = containerRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const maxX = Math.max((rect.width * (zoom - 1)) / 2, 0);
+    const maxY = Math.max((rect.height * (zoom - 1)) / 2, 0);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, valueX)),
+      y: Math.max(-maxY, Math.min(maxY, valueY)),
+    };
+  };
+
+  const handlePanStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (zoom <= 1) return;
+    activePanPointerIdRef.current = e.pointerId;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    panMovedRef.current = false;
+    panStateRef.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPanX: pan.x,
+      startPanY: pan.y,
+    };
+  };
+
+  const handlePanMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePanPointerIdRef.current !== e.pointerId || !panStateRef.current.dragging) return;
+    const dx = e.clientX - panStateRef.current.startX;
+    const dy = e.clientY - panStateRef.current.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMovedRef.current = true;
+    setPan(clampPan(panStateRef.current.startPanX + dx, panStateRef.current.startPanY + dy));
+  };
+
+  const handlePanEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePanPointerIdRef.current !== e.pointerId) return;
+    activePanPointerIdRef.current = null;
+    panStateRef.current.dragging = false;
+  };
+
   return (
     <div
       data-testid="floor-plan-root"
@@ -309,11 +369,16 @@ const FloorPlanCanvas = () => {
         key={floor.id}
         ref={containerRef}
         onClick={handleCanvasClick}
+        onPointerDown={handlePanStart}
+        onPointerMove={handlePanMove}
+        onPointerUp={handlePanEnd}
+        onPointerCancel={handlePanEnd}
         className={cn(
           "relative mx-auto h-full w-full transition-all",
-          placementMode && "cursor-crosshair shadow-[inset_0_0_0_2px_hsl(var(--accent))]",
+          placementMode && zoom <= 1 && "cursor-crosshair shadow-[inset_0_0_0_2px_hsl(var(--accent))]",
+          zoom > 1 && "cursor-grab active:cursor-grabbing touch-none",
         )}
-        style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
         data-testid="floor-plan-canvas"
       >
         {/* Rendered PDF as background image */}

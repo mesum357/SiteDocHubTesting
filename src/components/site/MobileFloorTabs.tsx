@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useActiveJob, useAppStore } from "@/store/useAppStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { canPerform } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 const MobileFloorTabs = () => {
   const job = useActiveJob();
   const activeFloorId = useAppStore((s) => s.activeFloorId);
   const setActiveFloor = useAppStore((s) => s.setActiveFloor);
+  const addFloor = useAppStore((s) => s.addFloor);
+  const role = useAuthStore((s) => s.role);
   const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const [elevated, setElevated] = useState(false);
+  const [addingFloor, setAddingFloor] = useState(false);
+  const [floorDraft, setFloorDraft] = useState("");
 
   useEffect(() => {
     activeTabRef.current?.scrollIntoView({
@@ -61,6 +67,35 @@ const MobileFloorTabs = () => {
             </span>
           </button>
         ))}
+        {canPerform(role, "CREATE_FLOOR") &&
+          (addingFloor ? (
+            <input
+              autoFocus
+              value={floorDraft}
+              onChange={(e) => setFloorDraft(e.target.value)}
+              onBlur={() => {
+                if (floorDraft.trim()) addFloor(job.id, floorDraft.trim());
+                setAddingFloor(false);
+                setFloorDraft("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") {
+                  setAddingFloor(false);
+                  setFloorDraft("");
+                }
+              }}
+              placeholder="Floor name"
+              className="w-24 shrink-0 rounded-full border border-accent bg-elevated px-2 py-1 text-xs text-ink outline-none"
+            />
+          ) : (
+            <button
+              onClick={() => setAddingFloor(true)}
+              className="shrink-0 rounded-full border border-accent bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
+            >
+              Add floor
+            </button>
+          ))}
       </div>
     </div>
   );
