@@ -59,23 +59,31 @@ const MobileBottomSheet = () => {
       </div>
 
       {expanded ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          {showPin ? (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <PinDetailPanel />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto px-3 py-3 transition-opacity duration-150",
+              showPin ? "pointer-events-none absolute inset-0 opacity-0" : "relative opacity-100"
+            )}
+          >
+            <div className="mb-2 flex items-center justify-between px-1">
+              <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
             </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
-              </div>
-              <ul className="space-y-1">
-                {floor?.pins.map((p) => (
-                  <PinRow key={p.id} pin={p} onSelect={() => selectPin(p.id)} />
-                ))}
-              </ul>
-            </div>
-          )}
+            <ul className="space-y-1">
+              {floor?.pins.map((p) => (
+                <PinRow key={p.id} pin={p} onSelect={() => selectPin(p.id)} />
+              ))}
+            </ul>
+          </div>
+
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-hidden transition-opacity duration-150",
+              showPin ? "relative opacity-100" : "pointer-events-none absolute inset-0 opacity-0"
+            )}
+          >
+            <PinDetailPanel />
+          </div>
         </div>
       ) : (
         <div className="sr-only">Bottom sheet minimized</div>

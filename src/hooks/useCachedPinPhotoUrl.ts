@@ -33,6 +33,13 @@ export function useCachedPinPhotoUrl(pinId: string | undefined, remoteUrl: strin
           return;
         }
 
+        // If the caller already provided a local/blob URL (e.g. immediate preview
+        // right after offline upload/capture), use it directly.
+        if (remoteUrl && !isHttpUrl(remoteUrl)) {
+          if (!cancelled) setLocalUrl(remoteUrl);
+          return;
+        }
+
         // If we're offline and have no cached blob, do NOT fall back to remote signed URLs.
         // This prevents noisy ERR_FAILED requests and allows UI to show a clean placeholder.
         if (!navigator.onLine) {
