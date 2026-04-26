@@ -75,10 +75,14 @@ const Header = ({ onNewJob, onShare }: Props) => {
 
   const handleMobileRefresh = async () => {
     if (refreshing) return;
+    if (!navigator.onLine) {
+      toast.error("No internet available");
+      return;
+    }
     setRefreshing(true);
     try {
-      await loadJobs();
-      toast.success("Refreshed");
+      // Full online refresh so all app state/assets are re-requested.
+      window.location.reload();
     } catch {
       toast.error("Refresh failed");
     } finally {

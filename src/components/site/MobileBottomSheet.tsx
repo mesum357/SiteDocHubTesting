@@ -14,6 +14,7 @@ const MobileBottomSheet = () => {
   const selectPin = useAppStore((s) => s.selectPin);
 
   const [expanded, setExpanded] = useState(false);
+  const [instantOpen, setInstantOpen] = useState(false);
   const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
@@ -21,7 +22,10 @@ const MobileBottomSheet = () => {
   // Auto-open details when a map pin is selected on mobile.
   useEffect(() => {
     if (selectedPinId) {
+      setInstantOpen(true);
       setExpanded(true);
+      const t = window.setTimeout(() => setInstantOpen(false), 180);
+      return () => window.clearTimeout(t);
     }
   }, [selectedPinId]);
 
@@ -40,7 +44,11 @@ const MobileBottomSheet = () => {
       className={cn("fixed inset-x-0 bottom-0 z-20 flex flex-col rounded-t-2xl border-t border-hairline bg-surface shadow-[0_-12px_40px_-8px_rgba(0,0,0,0.6)]")}
       initial={{ height: COLLAPSED_HEIGHT }}
       animate={{ height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT }}
-      transition={{ type: "spring", stiffness: 240, damping: 26 }}
+      transition={
+        instantOpen
+          ? { type: "tween", duration: 0.16, ease: "easeOut" }
+          : { type: "spring", stiffness: 320, damping: 30 }
+      }
     >
       <div
         className="flex cursor-grab touch-none justify-center py-2 active:cursor-grabbing"
