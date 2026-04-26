@@ -103,6 +103,22 @@ interface AppState {
 }
 
 const uid = (prefix = "id") => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+const isBlobObjectUrl = (url?: string) => typeof url === "string" && url.startsWith("blob:");
+
+function revokeBlobUrlsFromJobs(jobs: Job[]) {
+  for (const job of jobs) {
+    for (const floor of job.floors) {
+      if (isBlobObjectUrl(floor.pdfUrl)) {
+        URL.revokeObjectURL(floor.pdfUrl);
+      }
+      for (const pin of floor.pins) {
+        if (isBlobObjectUrl(pin.photoUrl)) {
+          URL.revokeObjectURL(pin.photoUrl);
+        }
+      }
+    }
+  }
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
   // ─── INITIAL STATE (empty) ──────────────────────────────────────────────────
@@ -371,6 +387,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         prev.activeFloorId
       );
 
+      // Prevent memory growth by revoking stale blob/object URLs created on prior loads.
+      revokeBlobUrlsFromJobs(prev.jobs);
+
       set({
         jobs: merged,
         activeJobId,
@@ -433,6 +452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         prev.activeJobId,
         prev.activeFloorId
       );
+      revokeBlobUrlsFromJobs(prev.jobs);
       set({ jobs, activeJobId, activeFloorId, loaded: true });
     }
   },
