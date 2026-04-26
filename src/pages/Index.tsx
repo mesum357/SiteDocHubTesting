@@ -6,12 +6,14 @@ import FloorPlanCanvas from "@/components/site/FloorPlanCanvas";
 import PinDetailPanel from "@/components/site/PinDetailPanel";
 import MobileBottomSheet from "@/components/site/MobileBottomSheet";
 import MobileFAB from "@/components/site/MobileFAB";
+import MobileFloorTabs from "@/components/site/MobileFloorTabs";
 import NewJobModal from "@/components/site/NewJobModal";
 import ShareLinkModal from "@/components/site/ShareLinkModal";
 import { CanvasSkeleton, SidebarSkeleton } from "@/components/site/Skeletons";
 import { useAppStore } from "@/store/useAppStore";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
+import { cn } from "@/lib/utils";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -87,6 +89,7 @@ const Index = () => {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-base text-ink">
       <Header onNewJob={() => setNewJobOpen(true)} onShare={() => setShareOpen(true)} />
+      {isMobile && <MobileFloorTabs />}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — desktop & tablet */}
@@ -125,7 +128,10 @@ const Index = () => {
       />
 
       {placementMode && (
-        <div className="pointer-events-none fixed inset-x-0 top-16 z-40 mx-auto w-fit rounded-full border border-accent bg-accent-soft px-4 py-1.5 text-xs font-display uppercase tracking-wider text-accent animate-fade-up">
+        <div className={cn(
+          "pointer-events-none fixed inset-x-0 z-40 mx-auto w-fit rounded-full border border-accent bg-accent-soft px-4 py-1.5 text-xs font-display uppercase tracking-wider text-accent animate-fade-up",
+          isMobile ? "top-24" : "top-16"
+        )}>
           Placement mode — click the floor plan
         </div>
       )}

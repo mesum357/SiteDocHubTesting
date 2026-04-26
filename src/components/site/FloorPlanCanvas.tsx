@@ -169,6 +169,7 @@ const FloorPlanCanvas = () => {
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
+  useEffect(() => { setHover(null); }, [floor?.id]);
   useEffect(() => {
     if (!job) return;
     void Promise.all(job.floors.map((f) => preloadPdfRender(f.pdfUrl)));
@@ -304,6 +305,7 @@ const FloorPlanCanvas = () => {
       )}
     >
       <div
+        key={floor.id}
         ref={containerRef}
         onClick={handleCanvasClick}
         className={cn(

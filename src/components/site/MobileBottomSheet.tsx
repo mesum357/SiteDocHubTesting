@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import { useAppStore, useActiveFloor, useActiveJob } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -13,10 +13,8 @@ const EXPANDED_HEIGHT = "70vh";
 const MobileBottomSheet = () => {
   const job = useActiveJob();
   const floor = useActiveFloor();
-  const activeFloorId = useAppStore((s) => s.activeFloorId);
   const selectedPinId = useAppStore((s) => s.selectedPinId);
   const selectPin = useAppStore((s) => s.selectPin);
-  const setActiveFloor = useAppStore((s) => s.setActiveFloor);
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const addFloor = useAppStore((s) => s.addFloor);
   const role = useAuthStore((s) => s.role);
@@ -24,7 +22,6 @@ const MobileBottomSheet = () => {
   const [expanded, setExpanded] = useState(false);
   const [addingFloor, setAddingFloor] = useState(false);
   const [floorDraft, setFloorDraft] = useState("");
-  const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
@@ -35,15 +32,6 @@ const MobileBottomSheet = () => {
       setExpanded(true);
     }
   }, [selectedPinId]);
-
-  useEffect(() => {
-    if (!expanded) return;
-    activeTabRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center",
-    });
-  }, [activeFloorId, expanded]);
 
   return (
     <motion.div
@@ -72,38 +60,6 @@ const MobileBottomSheet = () => {
 
       {expanded ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="sticky top-0 z-10 border-b border-hairline bg-surface px-3 pb-2 pt-1">
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {job?.floors.map((f) => (
-                <button
-                  key={f.id}
-                  ref={activeFloorId === f.id ? activeTabRef : null}
-                  onClick={() => setActiveFloor(f.id)}
-                  className={cn(
-                    "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                    activeFloorId === f.id
-                      ? "border-accent bg-accent text-accent-foreground shadow-[0_6px_16px_-8px_hsl(var(--accent)/0.8)]"
-                      : "border-hairline bg-elevated text-ink-secondary"
-                  )}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span>{f.name}</span>
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
-                        activeFloorId === f.id
-                          ? "bg-white/20 text-accent-foreground"
-                          : "bg-hairline text-ink-secondary"
-                      )}
-                    >
-                      {f.pins.length}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {showPin ? (
             <div className="min-h-0 flex-1 overflow-hidden">
               <PinDetailPanel />

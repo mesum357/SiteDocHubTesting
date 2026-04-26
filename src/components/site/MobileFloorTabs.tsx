@@ -1,0 +1,69 @@
+import { useEffect, useRef, useState } from "react";
+import { useActiveJob, useAppStore } from "@/store/useAppStore";
+import { cn } from "@/lib/utils";
+
+const MobileFloorTabs = () => {
+  const job = useActiveJob();
+  const activeFloorId = useAppStore((s) => s.activeFloorId);
+  const setActiveFloor = useAppStore((s) => s.setActiveFloor);
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  const [elevated, setElevated] = useState(false);
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeFloorId]);
+
+  useEffect(() => {
+    const onScroll = () => setElevated(window.scrollY > 2);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  if (!job || job.floors.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "sticky top-14 z-20 md:hidden border-b border-hairline bg-surface/95 px-3 py-2 backdrop-blur-sm transition-shadow",
+        elevated ? "shadow-[0_8px_18px_-14px_rgba(0,0,0,0.8)]" : "shadow-none"
+      )}
+    >
+      <div className="flex gap-2 overflow-x-auto">
+        {job.floors.map((f) => (
+          <button
+            key={f.id}
+            ref={activeFloorId === f.id ? activeTabRef : null}
+            onClick={() => setActiveFloor(f.id)}
+            className={cn(
+              "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              activeFloorId === f.id
+                ? "border-accent bg-accent text-accent-foreground shadow-[0_6px_16px_-8px_hsl(var(--accent)/0.8)]"
+                : "border-hairline bg-elevated text-ink-secondary"
+            )}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <span>{f.name}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
+                  activeFloorId === f.id
+                    ? "bg-white/20 text-accent-foreground"
+                    : "bg-hairline text-ink-secondary"
+                )}
+              >
+                {f.pins.length}
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default MobileFloorTabs;
