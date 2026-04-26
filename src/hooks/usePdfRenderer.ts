@@ -28,7 +28,9 @@ async function renderPdfToDataUrl(pdfUrl: string): Promise<CachedRender> {
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
 
-    const scale = 2;
+    // Rendering at 2x is expensive and delays first meaningful paint on mobile.
+    // Use a lighter adaptive scale for faster LCP while keeping adequate clarity.
+    const scale = Math.min(Math.max(window.devicePixelRatio, 1), 1.5);
     const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");
@@ -38,9 +40,16 @@ async function renderPdfToDataUrl(pdfUrl: string): Promise<CachedRender> {
 
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    const dataUrl = canvas.toDataURL("image/png");
+    // Prefer async blob encoding to avoid blocking main thread with large base64 strings.
+    const blob: Blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+        else reject(new Error("Failed to encode rendered PDF preview"));
+      }, "image/webp", 0.88);
+    });
+    const objectUrl = URL.createObjectURL(blob);
     const result = {
-      url: dataUrl,
+      url: objectUrl,
       dims: { width: viewport.width / scale, height: viewport.height / scale },
     };
     pdfRenderCache.set(pdfUrl, result);
@@ -84,11 +93,22 @@ export function usePdfRenderer(pdfUrl: string | undefined): PdfRenderResult {
       return;
     }
 
-    // Check cache first
+    // Check hook-local cache first
     const cached = cacheRef.current.get(pdfUrl);
     if (cached) {
       setImageUrl(cached.url);
       setDimensions(cached.dims);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    // Reuse global preloaded cache (used by preloadPdfRender) to avoid duplicate renders.
+    const globalCached = pdfRenderCache.get(pdfUrl);
+    if (globalCached) {
+      cacheRef.current.set(pdfUrl, globalCached);
+      setImageUrl(globalCached.url);
+      setDimensions(globalCached.dims);
       setLoading(false);
       setError(null);
       return;
