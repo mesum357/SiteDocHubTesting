@@ -3,7 +3,7 @@ import { Check, FileUp, Minus, Plus, Maximize2, Loader2 } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { canPerform } from "@/lib/permissions";
-import { usePdfRenderer } from "@/hooks/usePdfRenderer";
+import { preloadPdfRender, usePdfRenderer } from "@/hooks/usePdfRenderer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -169,6 +169,10 @@ const FloorPlanCanvas = () => {
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
+  useEffect(() => {
+    if (!job) return;
+    void Promise.all(job.floors.map((f) => preloadPdfRender(f.pdfUrl)));
+  }, [job]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -255,8 +259,8 @@ const FloorPlanCanvas = () => {
     );
   }
 
-  // PDF is loading
-  if (pdfLoading) {
+  // PDF is loading and no already-rendered frame is available yet.
+  if (pdfLoading && !pdfImageUrl) {
     return (
       <div
         data-testid="floor-plan-root"
@@ -336,6 +340,7 @@ const FloorPlanCanvas = () => {
           }}
         >
           <svg
+            key={floor.id}
             viewBox={`0 0 ${pdfDimensions.width} ${pdfDimensions.height}`}
             className="h-full w-full"
             preserveAspectRatio="none"
@@ -354,30 +359,41 @@ const FloorPlanCanvas = () => {
                 onMouseEnter={() => setHover(p.id)}
                 onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
                 onClick={(e) => { e.stopPropagation(); selectPin(p.id); }}
-                style={{ transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)", transform: `translate(${cx}px, ${cy}px) scale(${selected ? 1.3 : hover === p.id ? 1.15 : 1})` }}
+                style={{ transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)" }}
               >
-                {filled ? (
-                  <>
-                    <circle r="11" fill="hsl(var(--green))" stroke={selected ? "hsl(var(--accent))" : "hsl(var(--bg-base))"} strokeWidth={selected ? 3 : 2} />
-                    <path d="M -4 0 L -1 3 L 4 -3" fill="none" stroke="hsl(var(--bg-base))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </>
-                ) : (
-                  <>
-                    <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} />
-                    <circle r="3" fill="hsl(var(--accent))" />
-                    {!selected && (
-                      <circle r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.4">
-                        <animate attributeName="r" from="11" to="22" dur="1.6s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
-                      </circle>
-                    )}
-                  </>
-                )}
+                <g transform={`scale(${selected ? 1.3 : hover === p.id ? 1.15 : 1})`}>
+                  {filled ? (
+                    <>
+                      <circle r="11" fill="hsl(var(--green))" stroke={selected ? "hsl(var(--accent))" : "hsl(var(--bg-base))"} strokeWidth={selected ? 3 : 2} />
+                      <path d="M -4 0 L -1 3 L 4 -3" fill="none" stroke="hsl(var(--bg-base))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                  ) : (
+                    <>
+                      <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} />
+                      <circle r="3" fill="hsl(var(--accent))" />
+                      {!selected && (
+                        <circle r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.4">
+                          <animate attributeName="r" from="11" to="22" dur="1.6s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+                    </>
+                  )}
+                </g>
               </g>
             );
           })}
           </svg>
         </div>
+
+        {pdfLoading && (
+          <div className="absolute inset-0 grid place-items-center bg-base/25 backdrop-blur-[1px] pointer-events-none">
+            <div className="flex items-center gap-2 rounded-full border border-hairline bg-elevated/90 px-3 py-1.5 text-xs text-ink-secondary">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+              Rendering floor...
+            </div>
+          </div>
+        )}
 
         {/* Hover tooltip */}
         {hover && floor && (() => {

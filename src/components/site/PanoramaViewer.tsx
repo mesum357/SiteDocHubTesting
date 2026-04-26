@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -8,19 +8,20 @@ interface Props {
   onClose: () => void;
 }
 
-type PannellumViewer = { destroy?: () => void } | null;
-
-declare global {
-  interface Window {
-    pannellum?: {
-      viewer: (container: HTMLElement, config: Record<string, unknown>) => PannellumViewer;
-    };
-  }
-}
-
 const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const viewerRef = useRef<PannellumViewer>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const [offsetX, setOffsetX] = useState(0);
+  const [heading, setHeading] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const dragStateRef = useRef<{ dragging: boolean; startX: number; startOffset: number }>({
+    dragging: false,
+    startX: 0,
+    startOffset: 0,
+  });
+  const velocityRef = useRef(0);
+  const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
+  const inertiaFrameRef = useRef<number | null>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -35,57 +36,88 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   }, [handleKeyDown]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    // Dynamically load Pannellum CSS + JS
-    const loadPannellum = async () => {
-      // Add CSS if not already present
-      if (!document.getElementById("pannellum-css")) {
-        const link = document.createElement("link");
-        link.id = "pannellum-css";
-        link.rel = "stylesheet";
-        link.href = "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css";
-        document.head.appendChild(link);
-      }
-
-      // Load JS if not already present
-      if (!window.pannellum) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js";
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Failed to load Pannellum"));
-          document.head.appendChild(script);
-        });
-      }
-
-      // Initialize viewer
-      if (containerRef.current && window.pannellum) {
-        viewerRef.current = window.pannellum.viewer(containerRef.current, {
-          type: "equirectangular",
-          panorama: photoUrl,
-          autoLoad: true,
-          autoRotate: -2,
-          compass: false,
-          showZoomCtrl: true,
-          showFullscreenCtrl: false,
-          mouseZoom: true,
-          hfov: 110,
-          minHfov: 30,
-          maxHfov: 140,
-        });
-      }
+    const img = new Image();
+    img.onload = () => {
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+      setOffsetX(0);
     };
-
-    loadPannellum();
-
-    return () => {
-      if (viewerRef.current?.destroy) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
-      }
-    };
+    img.src = photoUrl;
   }, [photoUrl]);
+
+  useEffect(() => {
+    const update = () => setViewportWidth(viewportRef.current?.clientWidth ?? 0);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const maxScroll = Math.max(imageSize.width - viewportWidth, 0);
+    if (maxScroll <= 0) {
+      setHeading(0);
+      return;
+    }
+    const progress = Math.min(Math.max(-offsetX / maxScroll, 0), 1);
+    setHeading(Math.round(progress * 359));
+  }, [offsetX, imageSize.width, viewportWidth]);
+
+  const normalizeWrap = (value: number) => {
+    const maxScroll = Math.max(imageSize.width - viewportWidth, 0);
+    if (maxScroll <= 0) return 0;
+    let n = value;
+    while (n < -maxScroll) n += maxScroll;
+    while (n > 0) n -= maxScroll;
+    return n;
+  };
+
+  const startDrag = (clientX: number) => {
+    if (inertiaFrameRef.current) {
+      cancelAnimationFrame(inertiaFrameRef.current);
+      inertiaFrameRef.current = null;
+    }
+    velocityRef.current = 0;
+    lastMoveRef.current = { x: clientX, t: performance.now() };
+    dragStateRef.current = {
+      dragging: true,
+      startX: clientX,
+      startOffset: offsetX,
+    };
+  };
+
+  const moveDrag = (clientX: number) => {
+    if (!dragStateRef.current.dragging) return;
+    const delta = clientX - dragStateRef.current.startX;
+    const now = performance.now();
+    if (lastMoveRef.current) {
+      const dt = Math.max(now - lastMoveRef.current.t, 1);
+      const dx = clientX - lastMoveRef.current.x;
+      velocityRef.current = dx / dt; // px/ms
+    }
+    lastMoveRef.current = { x: clientX, t: now };
+    setOffsetX(normalizeWrap(dragStateRef.current.startOffset + delta));
+  };
+
+  const endDrag = () => {
+    dragStateRef.current.dragging = false;
+    const step = () => {
+      velocityRef.current *= 0.94;
+      if (Math.abs(velocityRef.current) < 0.01) {
+        inertiaFrameRef.current = null;
+        return;
+      }
+      setOffsetX((prev) => normalizeWrap(prev + velocityRef.current * 16));
+      inertiaFrameRef.current = requestAnimationFrame(step);
+    };
+    if (Math.abs(velocityRef.current) >= 0.01) {
+      inertiaFrameRef.current = requestAnimationFrame(step);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (inertiaFrameRef.current) cancelAnimationFrame(inertiaFrameRef.current);
+    };
+  }, []);
 
   const viewer = (
     <div className="fixed inset-0 z-[120] bg-black animate-fade-up">
@@ -97,8 +129,34 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
         <X className="h-5 w-5" />
       </button>
 
-      {/* Panorama container (immersive full-screen) */}
-      <div ref={containerRef} className="h-full w-full" />
+      <div className="absolute left-4 top-[max(12px,env(safe-area-inset-top))] z-[130] rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-sm">
+        Drag left/right to pan
+      </div>
+      <div className="absolute right-16 top-[max(12px,env(safe-area-inset-top))] z-[130] rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-sm">
+        {heading}&deg;
+      </div>
+      <div
+        ref={viewportRef}
+        className="h-full w-full overflow-hidden touch-none"
+        onMouseDown={(e) => startDrag(e.clientX)}
+        onMouseMove={(e) => moveDrag(e.clientX)}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onTouchStart={(e) => startDrag(e.touches[0].clientX)}
+        onTouchMove={(e) => moveDrag(e.touches[0].clientX)}
+        onTouchEnd={endDrag}
+      >
+        <img
+          src={photoUrl}
+          alt={`${pinName} panorama`}
+          className="h-full max-w-none select-none object-cover"
+          draggable={false}
+          style={{
+            transform: `translate3d(${offsetX}px, 0, 0)`,
+            width: imageSize.width > 0 ? `${imageSize.width}px` : "200vw",
+          }}
+        />
+      </div>
     </div>
   );
 
