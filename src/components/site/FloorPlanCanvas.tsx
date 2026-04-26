@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Check, FileUp, Minus, Plus, Maximize2, Loader2 } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -168,23 +169,11 @@ const FloorPlanCanvas = () => {
   const [draftName, setDraftName] = useState("");
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [panArmed, setPanArmed] = useState(false);
-  const panStateRef = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
-    dragging: false,
-    startX: 0,
-    startY: 0,
-    startPanX: 0,
-    startPanY: 0,
-  });
-  const panMovedRef = useRef(false);
-  const activePanPointerIdRef = useRef<number | null>(null);
+  const didDragRef = useRef(false);
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
   useEffect(() => { setHover(null); }, [floor?.id]);
   useEffect(() => { setPan({ x: 0, y: 0 }); }, [floor?.id, zoom]);
-  useEffect(() => {
-    if (zoom <= 1) setPanArmed(false);
-  }, [zoom]);
   useEffect(() => {
     if (!job) return;
     void Promise.all(job.floors.map((f) => preloadPdfRender(f.pdfUrl)));
@@ -293,8 +282,8 @@ const FloorPlanCanvas = () => {
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     if (!placementMode || !floor) return;
-    if (panMovedRef.current) {
-      panMovedRef.current = false;
+    if (didDragRef.current) {
+      didDragRef.current = false;
       return;
     }
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -331,37 +320,14 @@ const FloorPlanCanvas = () => {
       y: Math.max(-maxY, Math.min(maxY, valueY)),
     };
   };
-
-  const handlePanStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (zoom <= 1 || !panArmed) return;
-    activePanPointerIdRef.current = e.pointerId;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    panMovedRef.current = false;
-    panStateRef.current = {
-      dragging: true,
-      startX: e.clientX,
-      startY: e.clientY,
-      startPanX: pan.x,
-      startPanY: pan.y,
-    };
-  };
-
-  const handlePanMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (activePanPointerIdRef.current !== e.pointerId || !panStateRef.current.dragging) return;
-    const dx = e.clientX - panStateRef.current.startX;
-    const dy = e.clientY - panStateRef.current.startY;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMovedRef.current = true;
-    // Slight damping feels less "jumpy" on touch drags.
-    setPan(clampPan(panStateRef.current.startPanX + dx * 0.9, panStateRef.current.startPanY + dy * 0.9));
-  };
-
-  const handlePanEnd = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (activePanPointerIdRef.current !== e.pointerId) return;
-    activePanPointerIdRef.current = null;
-    panStateRef.current.dragging = false;
-    // Disarm after a completed pan interaction to avoid accidental re-drags.
-    if (panMovedRef.current) setPanArmed(false);
-  };
+  const panBounds = (() => {
+    const el = containerRef.current;
+    if (!el) return { left: 0, right: 0, top: 0, bottom: 0 };
+    const rect = el.getBoundingClientRect();
+    const maxX = Math.max((rect.width * (zoom - 1)) / 2, 0);
+    const maxY = Math.max((rect.height * (zoom - 1)) / 2, 0);
+    return { left: -maxX, right: maxX, top: -maxY, bottom: maxY };
+  })();
 
   return (
     <div
@@ -376,176 +342,169 @@ const FloorPlanCanvas = () => {
         key={floor.id}
         ref={containerRef}
         onClick={handleCanvasClick}
-        onPointerDown={handlePanStart}
-        onPointerMove={handlePanMove}
-        onPointerUp={handlePanEnd}
-        onPointerCancel={handlePanEnd}
-        onClick={(e) => {
-          // In zoomed view, require an explicit tap to arm panning.
-          if (zoom <= 1 || placementMode) return;
-          if (panMovedRef.current) {
-            panMovedRef.current = false;
-            return;
-          }
-          // Only arm when user taps inside the visible floor-map region.
-          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-          const rawX = e.clientX - rect.left;
-          const rawY = e.clientY - rect.top;
-          const centerX = rect.width / 2;
-          const centerY = rect.height / 2;
-          const localX = (rawX - centerX - pan.x) / zoom + centerX;
-          const localY = (rawY - centerY - pan.y) / zoom + centerY;
-          const px = localX - imageRect.left;
-          const py = localY - imageRect.top;
-          if (px < 0 || py < 0 || px > imageRect.width || py > imageRect.height) return;
-          setPanArmed((v) => !v);
-        }}
         className={cn(
           "relative mx-auto h-full w-full transition-all",
           placementMode && zoom <= 1 && "cursor-crosshair shadow-[inset_0_0_0_2px_hsl(var(--accent))]",
-          zoom > 1 && (panArmed ? "cursor-grab active:cursor-grabbing" : "cursor-default"),
+          zoom > 1 && !placementMode && "cursor-grab active:cursor-grabbing",
         )}
-        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
         data-testid="floor-plan-canvas"
       >
-        {/* Rendered PDF as background image */}
-        {pdfImageUrl && !pdfError ? (
-          <img
-            src={pdfImageUrl}
-            alt="Floor plan"
-            className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
-            draggable={false}
-          />
-        ) : pdfError ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/20 pointer-events-none">
-            <p className="font-display font-medium text-ink">Failed to render floor plan</p>
-            <p className="mt-1 text-xs text-ink-secondary">{pdfError}</p>
-            <p className="mt-2 text-xs text-ink-muted">You can still tap anywhere to place a pin.</p>
-          </div>
-        ) : null}
-
-        {/* Pin overlay aligned to the actual rendered PDF rectangle */}
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            left: `${imageRect.left}px`,
-            top: `${imageRect.top}px`,
-            width: `${imageRect.width}px`,
-            height: `${imageRect.height}px`,
+        <motion.div
+          className="absolute inset-0"
+          style={{ x: pan.x, y: pan.y, scale: zoom, transformOrigin: "center center" }}
+          drag={zoom > 1 && !placementMode}
+          dragMomentum={false}
+          dragElastic={0.02}
+          dragConstraints={panBounds}
+          onDragStart={() => {
+            didDragRef.current = false;
+          }}
+          onDrag={(_, info) => {
+            if (Math.abs(info.offset.x) > 2 || Math.abs(info.offset.y) > 2) {
+              didDragRef.current = true;
+            }
+            setPan((prev) => clampPan(prev.x + info.delta.x, prev.y + info.delta.y));
           }}
         >
-          <svg
-            key={floor.id}
-            viewBox={`0 0 ${pdfDimensions.width} ${pdfDimensions.height}`}
-            className="h-full w-full"
-            preserveAspectRatio="none"
-          >
-          {floor?.pins.map((p) => {
-            const cx = p.x * pdfDimensions.width;
-            const cy = p.y * pdfDimensions.height;
-            const filled = !!p.photoUrl;
-            const selected = p.id === selectedPinId;
-            return (
-              <g
-                key={p.id}
-                data-testid={`floor-map-marker-${p.id}`}
-                transform={`translate(${cx} ${cy})`}
-                className="pointer-events-auto cursor-pointer"
-                onMouseEnter={() => setHover(p.id)}
-                onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
-                onClick={(e) => { e.stopPropagation(); selectPin(p.id); }}
-                style={{ transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)" }}
-              >
-                <g transform={`scale(${selected ? 1.3 : hover === p.id ? 1.15 : 1})`}>
-                  {filled ? (
-                    <>
-                      <circle r="11" fill="hsl(var(--green))" stroke={selected ? "hsl(var(--accent))" : "hsl(var(--bg-base))"} strokeWidth={selected ? 3 : 2} />
-                      <path d="M -4 0 L -1 3 L 4 -3" fill="none" stroke="hsl(var(--bg-base))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </>
-                  ) : (
-                    <>
-                      <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} />
-                      <circle r="3" fill="hsl(var(--accent))" />
-                      {!selected && (
-                        <circle r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.4">
-                          <animate attributeName="r" from="11" to="22" dur="1.6s" repeatCount="indefinite" />
-                          <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
-                        </circle>
-                      )}
-                    </>
-                  )}
-                </g>
-              </g>
-            );
-          })}
-          </svg>
-        </div>
-
-        {pdfLoading && (
-          <div className="absolute inset-0 grid place-items-center bg-base/25 backdrop-blur-[1px] pointer-events-none">
-            <div className="flex items-center gap-2 rounded-full border border-hairline bg-elevated/90 px-3 py-1.5 text-xs text-ink-secondary">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
-              Rendering floor...
-            </div>
-          </div>
-        )}
-
-        {/* Hover tooltip */}
-        {hover && floor && (() => {
-          const p = floor.pins.find((x) => x.id === hover);
-          if (!p) return null;
-          return (
-            <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] rounded-md border border-hairline bg-elevated px-2.5 py-1 text-xs text-ink shadow-lg animate-fade-up"
-              style={{
-                left: `${imageRect.left + p.x * imageRect.width}px`,
-                top: `${imageRect.top + p.y * imageRect.height}px`,
-              }}
-            >
-              <div className="font-display">{p.name}</div>
-              <div className="font-mono-data text-[10px] text-ink-secondary">{p.photoUrl ? "1 photo" : "no photo"}</div>
-            </div>
-          );
-        })()}
-
-        {/* Inline draft pin name popover */}
-        {draftPin && (
-          <div
-            className="absolute z-20 -translate-x-1/2 translate-y-3 rounded-lg border border-accent bg-elevated p-2 shadow-2xl animate-scale-in"
-            style={{
-              left: `${imageRect.left + draftPin.x * imageRect.width}px`,
-              top: `${imageRect.top + draftPin.y * imageRect.height}px`,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <input
-              autoFocus
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (floor) {
-                    const finalName = draftName.trim() || "New Pin";
-                    addPin(job.id, floor.id, {
-                      name: finalName,
-                      x: draftPin.x,
-                      y: draftPin.y,
-                    });
-                    toast.success(`Pin "${finalName}" placed`);
-                  }
-                  setDraftPin(null);
-                  setDraftName("");
-                }
-                if (e.key === "Escape") {
-                  setDraftPin(null);
-                  setDraftName("");
-                }
-              }}
-              placeholder="Pin name…"
-              className="w-44 rounded bg-base px-2 py-1 text-sm text-ink outline-none"
+          {/* Rendered PDF as background image */}
+          {pdfImageUrl && !pdfError ? (
+            <img
+              src={pdfImageUrl}
+              alt="Floor plan"
+              className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
+              draggable={false}
             />
+          ) : pdfError ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/20 pointer-events-none">
+              <p className="font-display font-medium text-ink">Failed to render floor plan</p>
+              <p className="mt-1 text-xs text-ink-secondary">{pdfError}</p>
+              <p className="mt-2 text-xs text-ink-muted">You can still tap anywhere to place a pin.</p>
+            </div>
+          ) : null}
+
+          {/* Pin overlay aligned to the actual rendered PDF rectangle */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: `${imageRect.left}px`,
+              top: `${imageRect.top}px`,
+              width: `${imageRect.width}px`,
+              height: `${imageRect.height}px`,
+            }}
+          >
+            <svg
+              key={floor.id}
+              viewBox={`0 0 ${pdfDimensions.width} ${pdfDimensions.height}`}
+              className="h-full w-full"
+              preserveAspectRatio="none"
+            >
+            {floor?.pins.map((p) => {
+              const cx = p.x * pdfDimensions.width;
+              const cy = p.y * pdfDimensions.height;
+              const filled = !!p.photoUrl;
+              const selected = p.id === selectedPinId;
+              return (
+                <g
+                  key={p.id}
+                  data-testid={`floor-map-marker-${p.id}`}
+                  transform={`translate(${cx} ${cy})`}
+                  className="pointer-events-auto cursor-pointer"
+                  onMouseEnter={() => setHover(p.id)}
+                  onMouseLeave={() => setHover((h) => (h === p.id ? null : h))}
+                  onClick={(e) => { e.stopPropagation(); selectPin(p.id); }}
+                  style={{ transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)" }}
+                >
+                  <g transform={`scale(${selected ? 1.3 : hover === p.id ? 1.15 : 1})`}>
+                    {filled ? (
+                      <>
+                        <circle r="11" fill="hsl(var(--green))" stroke={selected ? "hsl(var(--accent))" : "hsl(var(--bg-base))"} strokeWidth={selected ? 3 : 2} />
+                        <path d="M -4 0 L -1 3 L 4 -3" fill="none" stroke="hsl(var(--bg-base))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </>
+                    ) : (
+                      <>
+                        <circle r="11" fill="hsl(var(--bg-base))" stroke="hsl(var(--accent))" strokeWidth={selected ? 3 : 2} />
+                        <circle r="3" fill="hsl(var(--accent))" />
+                        {!selected && (
+                          <circle r="11" fill="none" stroke="hsl(var(--accent))" strokeWidth="2" opacity="0.4">
+                            <animate attributeName="r" from="11" to="22" dur="1.6s" repeatCount="indefinite" />
+                            <animate attributeName="opacity" from="0.5" to="0" dur="1.6s" repeatCount="indefinite" />
+                          </circle>
+                        )}
+                      </>
+                    )}
+                  </g>
+                </g>
+              );
+            })}
+            </svg>
           </div>
-        )}
+
+          {pdfLoading && (
+            <div className="absolute inset-0 grid place-items-center bg-base/25 backdrop-blur-[1px] pointer-events-none">
+              <div className="flex items-center gap-2 rounded-full border border-hairline bg-elevated/90 px-3 py-1.5 text-xs text-ink-secondary">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                Rendering floor...
+              </div>
+            </div>
+          )}
+
+          {/* Hover tooltip */}
+          {hover && floor && (() => {
+            const p = floor.pins.find((x) => x.id === hover);
+            if (!p) return null;
+            return (
+              <div
+                className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] rounded-md border border-hairline bg-elevated px-2.5 py-1 text-xs text-ink shadow-lg animate-fade-up"
+                style={{
+                  left: `${imageRect.left + p.x * imageRect.width}px`,
+                  top: `${imageRect.top + p.y * imageRect.height}px`,
+                }}
+              >
+                <div className="font-display">{p.name}</div>
+                <div className="font-mono-data text-[10px] text-ink-secondary">{p.photoUrl ? "1 photo" : "no photo"}</div>
+              </div>
+            );
+          })()}
+
+          {/* Inline draft pin name popover */}
+          {draftPin && (
+            <div
+              className="absolute z-20 -translate-x-1/2 translate-y-3 rounded-lg border border-accent bg-elevated p-2 shadow-2xl animate-scale-in"
+              style={{
+                left: `${imageRect.left + draftPin.x * imageRect.width}px`,
+                top: `${imageRect.top + draftPin.y * imageRect.height}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                autoFocus
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (floor) {
+                      const finalName = draftName.trim() || "New Pin";
+                      addPin(job.id, floor.id, {
+                        name: finalName,
+                        x: draftPin.x,
+                        y: draftPin.y,
+                      });
+                      toast.success(`Pin "${finalName}" placed`);
+                    }
+                    setDraftPin(null);
+                    setDraftName("");
+                  }
+                  if (e.key === "Escape") {
+                    setDraftPin(null);
+                    setDraftName("");
+                  }
+                }}
+                placeholder="Pin name…"
+                className="w-44 rounded bg-base px-2 py-1 text-sm text-ink outline-none"
+              />
+            </div>
+          )}
+        </motion.div>
       </div>
 
       {/* Cancel placement hint */}
@@ -584,7 +543,7 @@ const FloorPlanCanvas = () => {
             isMobile ? "left-4 bottom-28" : "left-4 bottom-16"
           )}
         >
-          {panArmed ? "Drag enabled" : "Tap map to enable drag"}
+          Drag map to pan
         </div>
       )}
 
