@@ -28,9 +28,9 @@ async function renderPdfToDataUrl(pdfUrl: string): Promise<CachedRender> {
     const pdf = await loadingTask.promise;
     const page = await pdf.getPage(1);
 
-    // Rendering at 2x is expensive and delays first meaningful paint on mobile.
-    // Use a lighter adaptive scale for faster LCP while keeping adequate clarity.
-    const scale = Math.min(Math.max(window.devicePixelRatio, 1), 1.5);
+    // Keep first render lightweight to improve LCP on low/medium devices.
+    // Users can still zoom into the floor map in the UI if needed.
+    const scale = 1;
     const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");

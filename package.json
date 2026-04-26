@@ -18,7 +18,8 @@
     "test:prod:smoke": "node tests/prod-cors-smoke.mjs",
     "test:prod:e2e": "playwright test --config=playwright.prod.config.ts tests/prod-share-delete.spec.ts",
     "test:fixes": "node tests/run-fix-verification.mjs",
-    "test:fullapp": "node tests/run-full-app-verification.mjs"
+    "test:fullapp": "node tests/run-full-app-verification.mjs",
+    "test:perf:stability": "node tests/run-performance-stability.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

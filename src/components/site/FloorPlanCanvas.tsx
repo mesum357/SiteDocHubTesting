@@ -413,6 +413,9 @@ const FloorPlanCanvas = () => {
               src={pdfImageUrl}
               alt="Floor plan"
               className="absolute inset-0 h-full w-full object-contain pointer-events-none select-none"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
               draggable={false}
             />
           ) : pdfError ? (

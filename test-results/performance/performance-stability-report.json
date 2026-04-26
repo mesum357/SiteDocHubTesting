@@ -1,0 +1,159 @@
+{
+  "summary": {
+    "generatedAt": "2026-04-26T21:30:12.156Z",
+    "baseUrl": "http://localhost:8080",
+    "profileCount": 4,
+    "hardFailureCount": 0,
+    "perfFailureCount": 0,
+    "thresholds": {
+      "desktopLcpMs": 4000,
+      "mobileLcpMs": 3000,
+      "clsMax": 0.1,
+      "inpMsMax": 200
+    },
+    "pass": true,
+    "notes": [
+      "This script provides synthetic local metrics and crash/error checks.",
+      "It cannot guarantee zero crashes across all real devices, but fails on strong crash/error signals."
+    ]
+  },
+  "runs": [
+    {
+      "profile": "desktop-chrome",
+      "timestamp": "2026-04-26T21:30:02.632Z",
+      "durationMs": 3229,
+      "navigationOk": true,
+      "navigationError": null,
+      "login": {
+        "attempted": false,
+        "ok": true
+      },
+      "metrics": {
+        "lcpMs": 1476,
+        "cls": 0,
+        "inpMs": 0,
+        "fcpMs": 976,
+        "ttfbMs": 11,
+        "navType": "navigate",
+        "lcpElement": "div.text-center.text-sm.text-ink-soft",
+        "finalUrl": "http://localhost:8080/login",
+        "lcpRating": "good",
+        "clsRating": "good",
+        "inpRating": "good"
+      },
+      "stability": {
+        "hasHardFailure": false,
+        "crashCount": 0,
+        "pageErrorCount": 0,
+        "consoleErrorCount": 0,
+        "failedRequestCount": 0,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "requestFailures": []
+      }
+    },
+    {
+      "profile": "iphone-13",
+      "timestamp": "2026-04-26T21:30:05.506Z",
+      "durationMs": 2872,
+      "navigationOk": true,
+      "navigationError": null,
+      "login": {
+        "attempted": false,
+        "ok": true
+      },
+      "metrics": {
+        "lcpMs": 852,
+        "cls": 0.0002,
+        "inpMs": 0,
+        "fcpMs": 688,
+        "ttfbMs": 14,
+        "navType": "navigate",
+        "lcpElement": "div.text-center.text-sm.text-ink-soft",
+        "finalUrl": "http://localhost:8080/login",
+        "lcpRating": "good",
+        "clsRating": "good",
+        "inpRating": "good"
+      },
+      "stability": {
+        "hasHardFailure": false,
+        "crashCount": 0,
+        "pageErrorCount": 0,
+        "consoleErrorCount": 0,
+        "failedRequestCount": 0,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "requestFailures": []
+      }
+    },
+    {
+      "profile": "pixel-7",
+      "timestamp": "2026-04-26T21:30:09.219Z",
+      "durationMs": 3713,
+      "navigationOk": true,
+      "navigationError": null,
+      "login": {
+        "attempted": false,
+        "ok": true
+      },
+      "metrics": {
+        "lcpMs": 1784,
+        "cls": 0.0001,
+        "inpMs": 0,
+        "fcpMs": 1668,
+        "ttfbMs": 9,
+        "navType": "navigate",
+        "lcpElement": "div.text-center.text-sm.text-ink-soft",
+        "finalUrl": "http://localhost:8080/login",
+        "lcpRating": "good",
+        "clsRating": "good",
+        "inpRating": "good"
+      },
+      "stability": {
+        "hasHardFailure": false,
+        "crashCount": 0,
+        "pageErrorCount": 0,
+        "consoleErrorCount": 0,
+        "failedRequestCount": 0,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "requestFailures": []
+      }
+    },
+    {
+      "profile": "ipad-pro-11",
+      "timestamp": "2026-04-26T21:30:11.964Z",
+      "durationMs": 2744,
+      "navigationOk": true,
+      "navigationError": null,
+      "login": {
+        "attempted": false,
+        "ok": true
+      },
+      "metrics": {
+        "lcpMs": 716,
+        "cls": 0,
+        "inpMs": 0,
+        "fcpMs": 584,
+        "ttfbMs": 8,
+        "navType": "navigate",
+        "lcpElement": "div.text-center.text-sm.text-ink-soft",
+        "finalUrl": "http://localhost:8080/login",
+        "lcpRating": "good",
+        "clsRating": "good",
+        "inpRating": "good"
+      },
+      "stability": {
+        "hasHardFailure": false,
+        "crashCount": 0,
+        "pageErrorCount": 0,
+        "consoleErrorCount": 0,
+        "failedRequestCount": 0,
+        "pageErrors": [],
+        "consoleErrors": [],
+        "requestFailures": []
+      }
+    }
+  ],
+  "perfFailures": []
+}

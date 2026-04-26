@@ -318,6 +318,9 @@ const ShareView = () => {
                     src={floorMapImageUrl}
                     alt={`${activeFloor.label} map`}
                     className="absolute inset-0 h-full w-full object-contain"
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                   />
 
                   <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
