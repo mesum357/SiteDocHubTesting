@@ -46,8 +46,8 @@ const MobileBottomSheet = () => {
       animate={{ height: expanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT }}
       transition={
         instantOpen
-          ? { type: "tween", duration: 0.16, ease: "easeOut" }
-          : { type: "spring", stiffness: 320, damping: 30 }
+          ? { type: "tween", duration: 0.12, ease: "easeOut" }
+          : { type: "spring", stiffness: 380, damping: 32 }
       }
     >
       <div
