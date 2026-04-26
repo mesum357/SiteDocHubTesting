@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import { useAppStore, useActiveFloor, useActiveJob } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -13,8 +13,10 @@ const EXPANDED_HEIGHT = "70vh";
 const MobileBottomSheet = () => {
   const job = useActiveJob();
   const floor = useActiveFloor();
+  const activeFloorId = useAppStore((s) => s.activeFloorId);
   const selectedPinId = useAppStore((s) => s.selectedPinId);
   const selectPin = useAppStore((s) => s.selectPin);
+  const setActiveFloor = useAppStore((s) => s.setActiveFloor);
   const togglePlacement = useAppStore((s) => s.togglePlacement);
   const addFloor = useAppStore((s) => s.addFloor);
   const role = useAuthStore((s) => s.role);
@@ -22,6 +24,7 @@ const MobileBottomSheet = () => {
   const [expanded, setExpanded] = useState(false);
   const [addingFloor, setAddingFloor] = useState(false);
   const [floorDraft, setFloorDraft] = useState("");
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
   const dragControls = useDragControls();
 
   const showPin = !!selectedPinId;
@@ -32,6 +35,15 @@ const MobileBottomSheet = () => {
       setExpanded(true);
     }
   }, [selectedPinId]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    activeTabRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeFloorId, expanded]);
 
   return (
     <motion.div
@@ -58,47 +70,83 @@ const MobileBottomSheet = () => {
         <div className="h-1.5 w-12 rounded-full bg-hairline" />
       </div>
 
-      {expanded && showPin ? (
-        <div className="flex-1 overflow-hidden">
-          <PinDetailPanel />
-        </div>
-      ) : expanded ? (
-        <div className="flex-1 overflow-y-auto px-3 py-3">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
-            <div className="flex items-center gap-2">
-              {canPerform(role, "CREATE_FLOOR") &&
-                (addingFloor ? (
-                  <input
-                    autoFocus
-                    value={floorDraft}
-                    onChange={(e) => setFloorDraft(e.target.value)}
-                    onBlur={() => {
-                      if (job && floorDraft.trim()) addFloor(job.id, floorDraft.trim());
-                      setAddingFloor(false);
-                      setFloorDraft("");
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      if (e.key === "Escape") {
-                        setAddingFloor(false);
-                        setFloorDraft("");
-                      }
-                    }}
-                    placeholder="Floor name"
-                    className="w-24 rounded-full border border-accent bg-elevated px-2 py-1 text-xs outline-none"
-                  />
-                ) : (
-                  <button onClick={() => setAddingFloor(true)} className="text-xs font-medium text-accent">+ Floor</button>
-                ))}
-              <button onClick={() => togglePlacement(true)} className="text-xs font-medium text-accent">+ Place</button>
+      {expanded ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="sticky top-0 z-10 border-b border-hairline bg-surface px-3 pb-2 pt-1">
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {job?.floors.map((f) => (
+                <button
+                  key={f.id}
+                  ref={activeFloorId === f.id ? activeTabRef : null}
+                  onClick={() => setActiveFloor(f.id)}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    activeFloorId === f.id
+                      ? "border-accent bg-accent text-accent-foreground shadow-[0_6px_16px_-8px_hsl(var(--accent)/0.8)]"
+                      : "border-hairline bg-elevated text-ink-secondary"
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{f.name}</span>
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
+                        activeFloorId === f.id
+                          ? "bg-white/20 text-accent-foreground"
+                          : "bg-hairline text-ink-secondary"
+                      )}
+                    >
+                      {f.pins.length}
+                    </span>
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
-          <ul className="space-y-1">
-            {floor?.pins.map((p) => (
-              <PinRow key={p.id} pin={p} onSelect={() => selectPin(p.id)} />
-            ))}
-          </ul>
+
+          {showPin ? (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <PinDetailPanel />
+            </div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <h3 className="font-display text-sm text-ink">{floor?.name} pins</h3>
+                <div className="flex items-center gap-2">
+                  {canPerform(role, "CREATE_FLOOR") &&
+                    (addingFloor ? (
+                      <input
+                        autoFocus
+                        value={floorDraft}
+                        onChange={(e) => setFloorDraft(e.target.value)}
+                        onBlur={() => {
+                          if (job && floorDraft.trim()) addFloor(job.id, floorDraft.trim());
+                          setAddingFloor(false);
+                          setFloorDraft("");
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          if (e.key === "Escape") {
+                            setAddingFloor(false);
+                            setFloorDraft("");
+                          }
+                        }}
+                        placeholder="Floor name"
+                        className="w-24 rounded-full border border-accent bg-elevated px-2 py-1 text-xs outline-none"
+                      />
+                    ) : (
+                      <button onClick={() => setAddingFloor(true)} className="text-xs font-medium text-accent">+ Floor</button>
+                    ))}
+                  <button onClick={() => togglePlacement(true)} className="text-xs font-medium text-accent">+ Place</button>
+                </div>
+              </div>
+              <ul className="space-y-1">
+                {floor?.pins.map((p) => (
+                  <PinRow key={p.id} pin={p} onSelect={() => selectPin(p.id)} />
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       ) : (
         <div className="sr-only">Bottom sheet minimized</div>

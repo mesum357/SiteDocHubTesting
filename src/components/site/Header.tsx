@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera, Trash2, Shield } from "lucide-react";
+import { Link2, Download, ChevronDown, User, Plus, WifiOff, RefreshCw, Check, AlertTriangle, Camera, Trash2, Shield, Menu } from "lucide-react";
 import { useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { flushUploadQueue } from "@/lib/syncEngine";
@@ -34,6 +34,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
   const { label: syncLabel, color: syncColor, status: syncStatus } = useSyncStatus();
   const [open, setOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -195,7 +196,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
           )}
         </button>
         {canPerform(role, "GENERATE_SHARE") && (
-          <button onClick={() => { onShare(); }} aria-label="Share" className="lift-on-hover hidden sm:grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary hover:border-accent hover:text-accent">
+          <button onClick={() => { onShare(); }} aria-label="Share" className="lift-on-hover hidden lg:grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary hover:border-accent hover:text-accent">
             <Link2 className="h-4 w-4" />
           </button>
         )}
@@ -219,12 +220,12 @@ const Header = ({ onNewJob, onShare }: Props) => {
             }}
             disabled={!job || exporting}
             aria-label="Export"
-            className="lift-on-hover hidden sm:grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary hover:border-accent hover:text-accent"
+            className="lift-on-hover hidden lg:grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary hover:border-accent hover:text-accent"
           >
             <Download className="h-4 w-4" />
           </button>
         )}
-        <div className="relative">
+        <div className="relative hidden lg:block">
           <button onClick={() => setUserOpen((o) => !o)} aria-label="Account" className="lift-on-hover grid h-8 w-8 place-items-center rounded-full border border-hairline bg-elevated text-xs font-display text-ink hover:border-accent uppercase">
             {user?.email?.slice(0, 2) ?? "US"}
           </button>
@@ -250,6 +251,78 @@ const Header = ({ onNewJob, onShare }: Props) => {
                   <Shield className="h-4 w-4 text-ink-secondary" /> Security
                 </button>
                 <button className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2 text-sm hover:bg-accent-soft" onClick={async () => { setUserOpen(false); await signOut(); navigate("/login"); toast.info("Signed out"); }}>
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="relative lg:hidden">
+          <button
+            onClick={() => setMobileMenuOpen((o) => !o)}
+            aria-label="Open menu"
+            className="lift-on-hover grid h-8 w-8 place-items-center rounded-md border border-hairline bg-elevated text-ink-secondary hover:border-accent hover:text-accent"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+          {mobileMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} />
+              <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-52 overflow-hidden rounded-lg border border-hairline bg-elevated shadow-2xl animate-scale-in">
+                <button
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent-soft"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate("/security");
+                  }}
+                >
+                  <User className="h-4 w-4 text-ink-secondary" /> Profile
+                </button>
+                {canPerform(role, "GENERATE_SHARE") && (
+                  <button
+                    className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2 text-sm hover:bg-accent-soft"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onShare();
+                    }}
+                  >
+                    <Link2 className="h-4 w-4 text-ink-secondary" /> Share
+                  </button>
+                )}
+                {canPerform(role, "EXPORT_REPORT") && (
+                  <button
+                    onClick={async () => {
+                      if (!job || exporting) return;
+                      setMobileMenuOpen(false);
+                      setExporting(true);
+                      const toastId = toast.loading("Generating export…");
+                      try {
+                        const { html, filename } = await generateHtmlReport(job, (pct) => {
+                          toast.loading(`Encoding photos… ${pct}%`, { id: toastId });
+                        });
+                        downloadHtmlReport(html, filename);
+                        toast.success(`Exported ${filename}`, { id: toastId });
+                      } catch {
+                        toast.error("Export failed", { id: toastId });
+                      } finally {
+                        setExporting(false);
+                      }
+                    }}
+                    disabled={!job || exporting}
+                    className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2 text-left text-sm hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Download className="h-4 w-4 text-ink-secondary" /> Export
+                  </button>
+                )}
+                <button
+                  className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2 text-sm hover:bg-accent-soft"
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await signOut();
+                    navigate("/login");
+                    toast.info("Signed out");
+                  }}
+                >
                   Sign out
                 </button>
               </div>
