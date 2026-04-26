@@ -168,6 +168,7 @@ const FloorPlanCanvas = () => {
   const [draftName, setDraftName] = useState("");
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [panArmed, setPanArmed] = useState(false);
   const panStateRef = useRef<{ dragging: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
     dragging: false,
     startX: 0,
@@ -181,6 +182,9 @@ const FloorPlanCanvas = () => {
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
   useEffect(() => { setHover(null); }, [floor?.id]);
   useEffect(() => { setPan({ x: 0, y: 0 }); }, [floor?.id, zoom]);
+  useEffect(() => {
+    if (zoom <= 1) setPanArmed(false);
+  }, [zoom]);
   useEffect(() => {
     if (!job) return;
     void Promise.all(job.floors.map((f) => preloadPdfRender(f.pdfUrl)));
@@ -329,7 +333,7 @@ const FloorPlanCanvas = () => {
   };
 
   const handlePanStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (zoom <= 1) return;
+    if (zoom <= 1 || !panArmed) return;
     activePanPointerIdRef.current = e.pointerId;
     e.currentTarget.setPointerCapture(e.pointerId);
     panMovedRef.current = false;
@@ -347,13 +351,16 @@ const FloorPlanCanvas = () => {
     const dx = e.clientX - panStateRef.current.startX;
     const dy = e.clientY - panStateRef.current.startY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) panMovedRef.current = true;
-    setPan(clampPan(panStateRef.current.startPanX + dx, panStateRef.current.startPanY + dy));
+    // Slight damping feels less "jumpy" on touch drags.
+    setPan(clampPan(panStateRef.current.startPanX + dx * 0.9, panStateRef.current.startPanY + dy * 0.9));
   };
 
   const handlePanEnd = (e: React.PointerEvent<HTMLDivElement>) => {
     if (activePanPointerIdRef.current !== e.pointerId) return;
     activePanPointerIdRef.current = null;
     panStateRef.current.dragging = false;
+    // Disarm after a completed pan interaction to avoid accidental re-drags.
+    if (panMovedRef.current) setPanArmed(false);
   };
 
   return (
@@ -373,10 +380,30 @@ const FloorPlanCanvas = () => {
         onPointerMove={handlePanMove}
         onPointerUp={handlePanEnd}
         onPointerCancel={handlePanEnd}
+        onClick={(e) => {
+          // In zoomed view, require an explicit tap to arm panning.
+          if (zoom <= 1 || placementMode) return;
+          if (panMovedRef.current) {
+            panMovedRef.current = false;
+            return;
+          }
+          // Only arm when user taps inside the visible floor-map region.
+          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          const rawX = e.clientX - rect.left;
+          const rawY = e.clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+          const localX = (rawX - centerX - pan.x) / zoom + centerX;
+          const localY = (rawY - centerY - pan.y) / zoom + centerY;
+          const px = localX - imageRect.left;
+          const py = localY - imageRect.top;
+          if (px < 0 || py < 0 || px > imageRect.width || py > imageRect.height) return;
+          setPanArmed((v) => !v);
+        }}
         className={cn(
           "relative mx-auto h-full w-full transition-all",
           placementMode && zoom <= 1 && "cursor-crosshair shadow-[inset_0_0_0_2px_hsl(var(--accent))]",
-          zoom > 1 && "cursor-grab active:cursor-grabbing touch-none",
+          zoom > 1 && (panArmed ? "cursor-grab active:cursor-grabbing" : "cursor-default"),
         )}
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center center" }}
         data-testid="floor-plan-canvas"
@@ -549,6 +576,17 @@ const FloorPlanCanvas = () => {
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {zoom > 1 && (
+        <div
+          className={cn(
+            "absolute z-10 rounded-full border border-hairline bg-elevated/90 px-3 py-1 text-[10px] text-ink-secondary backdrop-blur",
+            isMobile ? "left-4 bottom-28" : "left-4 bottom-16"
+          )}
+        >
+          {panArmed ? "Drag enabled" : "Tap map to enable drag"}
+        </div>
+      )}
 
       {/* Floor badge */}
       <div className={cn("absolute left-4 rounded-md border border-hairline bg-elevated/80 backdrop-blur px-3 py-1.5", isMobile ? "bottom-16" : "bottom-4")}>
