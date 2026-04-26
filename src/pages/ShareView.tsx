@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Camera, Loader2, AlertTriangle, Maximize } from "lucide-react";
+import { Camera, Loader2, AlertTriangle, Maximize, Minus, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import PanoramaViewer from "@/components/site/PanoramaViewer";
@@ -54,6 +54,7 @@ const ShareView = () => {
   const [activeFloorId, setActiveFloorId] = useState("");
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [viewerPin, setViewerPin] = useState<{ name: string; url: string } | null>(null);
+  const [zoom, setZoom] = useState(1);
   const pinCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -138,6 +139,21 @@ const ShareView = () => {
     if (!node) return;
     node.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedPinId]);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [activeFloorId]);
+
+  const handleShareMapWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
+    // Prefer pinch/trackpad-style zoom (ctrlKey on many browsers), but also support
+    // deliberate mouse-wheel zoom while cursor is over the map.
+    e.preventDefault();
+    const delta = Math.sign(e.deltaY);
+    setZoom((z) => {
+      const next = z - delta * 0.08;
+      return Math.min(2.5, Math.max(0.5, +next.toFixed(2)));
+    });
+  };
 
   if (status === "loading") {
     return (
@@ -238,55 +254,73 @@ const ShareView = () => {
               <div
                 className="relative h-[420px] overflow-hidden rounded-md bg-elevated"
                 data-testid="share-floor-map"
+                onWheel={handleShareMapWheel}
               >
-                <img
-                  src={floorMapImageUrl}
-                  alt={`${activeFloor.label} map`}
-                  className="absolute inset-0 h-full w-full object-contain"
-                />
+                <div
+                  className="relative h-full w-full"
+                  style={{ transform: `scale(${zoom})`, transformOrigin: "center center" }}
+                >
+                  <img
+                    src={floorMapImageUrl}
+                    alt={`${activeFloor.label} map`}
+                    className="absolute inset-0 h-full w-full object-contain"
+                  />
 
-                <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-                  {floorPins.map((pin) => {
-                    const cx = pin.x_pct * 1000;
-                    const cy = pin.y_pct * 700;
-                    const selected = pin.id === selectedPinId;
-                    return (
-                      <g
-                        key={pin.id}
-                        transform={`translate(${cx} ${cy})`}
-                        className="cursor-pointer"
-                        data-testid={`share-map-marker-${pin.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPinId(pin.id);
-                        }}
-                        style={{
-                          transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)",
-                          transform: `translate(${cx}px, ${cy}px) scale(${selected ? 1.25 : 1})`,
-                        }}
-                      >
-                        <circle
-                          r="11"
-                          fill={pin.photoUrl ? "hsl(var(--green))" : "hsl(var(--bg-base))"}
-                          stroke={selected ? "hsl(var(--accent))" : "hsl(var(--hairline))"}
-                          strokeWidth={selected ? 3 : 2}
-                        />
-                        {pin.photoUrl ? (
-                          <path
-                            d="M -4 0 L -1 3 L 4 -3"
-                            fill="none"
-                            stroke="hsl(var(--bg-base))"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ) : (
-                          <circle r="3" fill="hsl(var(--accent))" />
-                        )}
-                      </g>
-                    );
-                  })}
-                </svg>
+                  <svg viewBox="0 0 1000 700" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+                    {floorPins.map((pin) => {
+                      const cx = pin.x_pct * 1000;
+                      const cy = pin.y_pct * 700;
+                      const selected = pin.id === selectedPinId;
+                      return (
+                        <g
+                          key={pin.id}
+                          transform={`translate(${cx} ${cy})`}
+                          className="cursor-pointer"
+                          data-testid={`share-map-marker-${pin.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPinId(pin.id);
+                          }}
+                          style={{ transition: "transform 180ms cubic-bezier(0.4,0,0.2,1)" }}
+                        >
+                          <g transform={`scale(${selected ? 1.25 : 1})`}>
+                            <circle
+                              r="11"
+                              fill={pin.photoUrl ? "hsl(var(--green))" : "hsl(var(--bg-base))"}
+                              stroke={selected ? "hsl(var(--accent))" : "hsl(var(--hairline))"}
+                              strokeWidth={selected ? 3 : 2}
+                            />
+                            {pin.photoUrl ? (
+                              <path
+                                d="M -4 0 L -1 3 L 4 -3"
+                                fill="none"
+                                stroke="hsl(var(--bg-base))"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            ) : (
+                              <circle r="3" fill="hsl(var(--accent))" />
+                            )}
+                          </g>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+
+                <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-hairline bg-elevated/90 px-1.5 py-1 shadow-xl">
+                  <button onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))} aria-label="Zoom out" className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary hover:bg-elevated hover:text-accent">
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="px-1 font-mono-data text-[11px] text-ink-secondary tabular-nums">{Math.round(zoom * 100)}%</span>
+                  <button onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.1).toFixed(2)))} aria-label="Zoom in" className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary hover:bg-elevated hover:text-accent">
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => setZoom(1)} aria-label="Reset zoom" className="grid h-7 w-7 place-items-center rounded-full text-ink-secondary hover:bg-elevated hover:text-accent">
+                    <Maximize className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

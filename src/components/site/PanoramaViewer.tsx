@@ -22,6 +22,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   const velocityRef = useRef(0);
   const lastMoveRef = useRef<{ x: number; t: number } | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -124,7 +125,7 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       <button
         onClick={onClose}
         aria-label={`Close panorama viewer for ${pinName}`}
-        className="absolute right-3 top-[max(12px,env(safe-area-inset-top))] z-[130] grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+        className="absolute right-3 top-[max(12px,env(safe-area-inset-top))] z-[160] grid h-10 w-10 place-items-center rounded-full bg-black/65 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
       >
         <X className="h-5 w-5" />
       </button>
@@ -138,13 +139,25 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       <div
         ref={viewportRef}
         className="h-full w-full overflow-hidden touch-none"
-        onMouseDown={(e) => startDrag(e.clientX)}
-        onMouseMove={(e) => moveDrag(e.clientX)}
-        onMouseUp={endDrag}
-        onMouseLeave={endDrag}
-        onTouchStart={(e) => startDrag(e.touches[0].clientX)}
-        onTouchMove={(e) => moveDrag(e.touches[0].clientX)}
-        onTouchEnd={endDrag}
+        onPointerDown={(e) => {
+          activePointerIdRef.current = e.pointerId;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          startDrag(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (activePointerIdRef.current !== e.pointerId) return;
+          moveDrag(e.clientX);
+        }}
+        onPointerUp={(e) => {
+          if (activePointerIdRef.current !== e.pointerId) return;
+          activePointerIdRef.current = null;
+          endDrag();
+        }}
+        onPointerCancel={(e) => {
+          if (activePointerIdRef.current !== e.pointerId) return;
+          activePointerIdRef.current = null;
+          endDrag();
+        }}
       >
         <img
           src={photoUrl}
