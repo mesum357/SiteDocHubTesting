@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useDragControls } from "framer-motion";
 import { Check, FileUp, Minus, Plus, Maximize2, Loader2 } from "lucide-react";
 import { useActiveFloor, useActiveJob, useAppStore } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -170,6 +170,10 @@ const FloorPlanCanvas = () => {
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const didDragRef = useRef(false);
+  const dragControls = useDragControls();
+  const dragPressTimerRef = useRef<number | null>(null);
+  const dragPressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const dragPressPointerIdRef = useRef<number | null>(null);
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
   useEffect(() => { setHover(null); }, [floor?.id]);
@@ -329,6 +333,15 @@ const FloorPlanCanvas = () => {
     return { left: -maxX, right: maxX, top: -maxY, bottom: maxY };
   })();
 
+  const clearPendingDragStart = () => {
+    if (dragPressTimerRef.current !== null) {
+      window.clearTimeout(dragPressTimerRef.current);
+      dragPressTimerRef.current = null;
+    }
+    dragPressStartRef.current = null;
+    dragPressPointerIdRef.current = null;
+  };
+
   return (
     <div
       data-testid="floor-plan-root"
@@ -352,10 +365,38 @@ const FloorPlanCanvas = () => {
         <motion.div
           className="absolute inset-0"
           style={{ x: pan.x, y: pan.y, scale: zoom, transformOrigin: "center center" }}
+          dragListener={false}
+          dragControls={dragControls}
           drag={zoom > 1 && !placementMode}
           dragMomentum={false}
           dragElastic={0.02}
           dragConstraints={panBounds}
+          onPointerDown={(e) => {
+            if (zoom <= 1 || placementMode) return;
+            clearPendingDragStart();
+            dragPressPointerIdRef.current = e.pointerId;
+            dragPressStartRef.current = { x: e.clientX, y: e.clientY };
+            // Require a short press before dragging to reduce accidental pans.
+            dragPressTimerRef.current = window.setTimeout(() => {
+              dragControls.start(e);
+              dragPressTimerRef.current = null;
+            }, 120);
+          }}
+          onPointerMove={(e) => {
+            if (dragPressPointerIdRef.current !== e.pointerId || !dragPressStartRef.current) return;
+            // If finger moved too much before hold delay, treat as normal gesture and cancel drag-start.
+            const dx = e.clientX - dragPressStartRef.current.x;
+            const dy = e.clientY - dragPressStartRef.current.y;
+            if (Math.hypot(dx, dy) > 8) {
+              clearPendingDragStart();
+            }
+          }}
+          onPointerUp={(e) => {
+            if (dragPressPointerIdRef.current === e.pointerId) clearPendingDragStart();
+          }}
+          onPointerCancel={(e) => {
+            if (dragPressPointerIdRef.current === e.pointerId) clearPendingDragStart();
+          }}
           onDragStart={() => {
             didDragRef.current = false;
           }}
@@ -543,7 +584,7 @@ const FloorPlanCanvas = () => {
             isMobile ? "left-4 bottom-28" : "left-4 bottom-16"
           )}
         >
-          Drag map to pan
+          Press and drag map to pan
         </div>
       )}
 
