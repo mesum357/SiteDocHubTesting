@@ -167,7 +167,6 @@ const FloorPlanCanvas = () => {
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(null);
   const [draftName, setDraftName] = useState("");
   const [imageRect, setImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
-  const [baseImageRect, setBaseImageRect] = useState({ left: 0, top: 0, width: 1, height: 1 });
 
   useEffect(() => { setDraftPin(null); }, [floor?.id, job?.id]);
   useEffect(() => { setHover(null); }, [floor?.id]);
@@ -205,18 +204,11 @@ const FloorPlanCanvas = () => {
         left = (cw - width) / 2;
       }
 
-      const baseRect = {
+      setImageRect({
         left,
         top,
         width: Math.max(width, 1),
         height: Math.max(height, 1),
-      };
-      setBaseImageRect(baseRect);
-      setImageRect({
-        left: baseRect.left * zoom,
-        top: baseRect.top * zoom,
-        width: baseRect.width * zoom,
-        height: baseRect.height * zoom,
       });
     };
 
@@ -297,9 +289,9 @@ const FloorPlanCanvas = () => {
       return;
     }
 
-    // Normalize against unscaled image space so pin coordinates remain stable across zoom.
-    const x = (px / Math.max(zoom, 0.001)) / baseImageRect.width;
-    const y = (py / Math.max(zoom, 0.001)) / baseImageRect.height;
+    // Normalize in the visible rendered image space.
+    const x = px / imageRect.width;
+    const y = py / imageRect.height;
 
     setDraftPin({ x, y });
   };
