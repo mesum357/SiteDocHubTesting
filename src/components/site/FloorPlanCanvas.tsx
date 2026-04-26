@@ -217,7 +217,7 @@ const FloorPlanCanvas = () => {
     ro.observe(el);
 
     return () => ro.disconnect();
-  }, [pdfDimensions.width, pdfDimensions.height, zoom]);
+  }, [pdfDimensions.width, pdfDimensions.height]);
 
   // Empty state — no job selected
   if (!job || !floor) {

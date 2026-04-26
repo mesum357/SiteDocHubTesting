@@ -63,7 +63,6 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [isPanorama, setIsPanorama] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const photoSrc = useCachedPinPhotoUrl(pin?.id ?? undefined, pin?.photoUrl);
@@ -73,29 +72,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
     setNotesDraft(pin?.notes ?? "");
     setEditingName(false);
     setViewerOpen(false);
-    setIsPanorama(false);
   }, [pin?.id]);
-
-  useEffect(() => {
-    if (!photoSrc) {
-      setIsPanorama(false);
-      return;
-    }
-    let cancelled = false;
-    const img = new Image();
-    img.onload = () => {
-      if (cancelled) return;
-      const ratio = img.naturalWidth / Math.max(img.naturalHeight, 1);
-      setIsPanorama(ratio >= 1.8);
-    };
-    img.onerror = () => {
-      if (!cancelled) setIsPanorama(false);
-    };
-    img.src = photoSrc;
-    return () => {
-      cancelled = true;
-    };
-  }, [photoSrc]);
 
   // Tablet overlay: only render when a pin is selected and viewport is md..lg-1
   const showTablet = tabletOverlay && pin;
@@ -217,7 +194,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                   className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
                   onClick={() => setViewerOpen(true)}
                 >
-                  <Maximize className="h-3.5 w-3.5" /> {isPanorama ? "View Full 360°" : "View Full Photo"}
+                  <Maximize className="h-3.5 w-3.5" /> View Full 360°
                 </button>
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-base to-transparent p-2">
