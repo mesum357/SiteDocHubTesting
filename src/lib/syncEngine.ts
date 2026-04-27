@@ -36,6 +36,25 @@ function notifyListeners(status: EngineSyncStatus, queueCount: number) {
 let isSyncing = false;
 let listenersRegistered = false;
 
+const queueTypePriority: Record<QueueItem["type"], number> = {
+  job_create: 0,
+  floor_create: 1,
+  pin_create: 2,
+  pin_update: 3,
+  photo_upload: 4,
+  pin_delete: 5,
+  floor_delete: 6,
+  job_delete: 7,
+};
+
+function sortPendingQueueItems(items: QueueItem[]): QueueItem[] {
+  return [...items].sort((a, b) => {
+    const priorityDelta = queueTypePriority[a.type] - queueTypePriority[b.type];
+    if (priorityDelta !== 0) return priorityDelta;
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+  });
+}
+
 function isTransientNetworkError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   return (
@@ -59,9 +78,7 @@ export async function flushUploadQueue(): Promise<void> {
     // Process until the queue is drained. This catches items that are enqueued
     // while sync is already running and improves offline->online consistency.
     while (navigator.onLine) {
-      const pending = (await getPendingQueueItems()).sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
+      const pending = sortPendingQueueItems(await getPendingQueueItems());
       if (pending.length === 0) {
         notifyListeners("idle", 0);
         break;
