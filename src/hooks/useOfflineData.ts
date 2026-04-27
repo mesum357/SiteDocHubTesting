@@ -244,10 +244,15 @@ export async function uploadPhotoToPin(
 
       if (uploadError) throw uploadError;
 
-      await supabase
+      const { data: updatedPin, error: updateErr } = await supabase
         .from("pins")
         .update({ photo_path: storagePath, photo_taken_at: photoTakenAt })
-        .eq("id", pinId);
+        .eq("id", pinId)
+        .select("id")
+        .maybeSingle();
+
+      if (updateErr) throw updateErr;
+      if (!updatedPin) throw new Error("Pin row not found while updating photo metadata");
 
       return { success: true, queued: false };
     } catch {

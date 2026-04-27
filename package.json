@@ -14,6 +14,7 @@
     "test:auth:diag": "node tests/auth-update-diagnostics.mjs",
     "test:auth:function": "node tests/auth-update-function-diag.mjs",
     "test:offline": "playwright test tests/offline-workflow.e2e.spec.ts tests/offline-workflow-granular.spec.ts",
+    "test:pin-sync": "playwright test tests/pin-photo-multi-device-sync.spec.ts",
     "test:e2e:full": "playwright test --workers=1 tests/auth-and-shell.spec.ts tests/uploads-online.spec.ts tests/insta360-mocked.spec.ts tests/offline-workflow.e2e.spec.ts tests/offline-workflow-granular.spec.ts tests/full-app-smoke.spec.ts",
     "test:prod:smoke": "node tests/prod-cors-smoke.mjs",
     "test:prod:e2e": "playwright test --config=playwright.prod.config.ts tests/prod-share-delete.spec.ts",

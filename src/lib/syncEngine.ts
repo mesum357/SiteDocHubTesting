@@ -53,79 +53,81 @@ export async function flushUploadQueue(): Promise<void> {
   if (!navigator.onLine) return;
 
   try {
-    const pending = await getPendingQueueItems();
-    if (pending.length === 0) {
-      notifyListeners("idle", 0);
-      return;
-    }
-
     isSyncing = true;
-    notifyListeners("syncing", pending.length);
-
-    let remaining = pending.length;
     let abortedForNetwork = false;
 
-    for (const item of pending) {
-      try {
-        await updateQueueItem(item.id!, {
-          status: "syncing",
-          lastAttemptAt: new Date().toISOString(),
-        });
+    // Process until the queue is drained. This catches items that are enqueued
+    // while sync is already running and improves offline->online consistency.
+    while (navigator.onLine) {
+      const pending = (await getPendingQueueItems()).sort((a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      if (pending.length === 0) {
+        notifyListeners("idle", 0);
+        break;
+      }
 
-        switch (item.type) {
-          case "photo_upload":
-            await processPhotoUpload(item);
+      notifyListeners("syncing", pending.length);
+
+      let remaining = pending.length;
+      for (const item of pending) {
+        try {
+          await updateQueueItem(item.id!, {
+            status: "syncing",
+            lastAttemptAt: new Date().toISOString(),
+          });
+
+          switch (item.type) {
+            case "photo_upload":
+              await processPhotoUpload(item);
+              break;
+            case "pin_update":
+              await processPinUpdate(item);
+              break;
+            case "job_create":
+            case "floor_create":
+            case "pin_create":
+              await processRecordCreate(item);
+              break;
+            case "pin_delete":
+            case "floor_delete":
+            case "job_delete":
+              await processRecordDelete(item);
+              break;
+            default:
+              throw new Error(`Unknown queue item type: ${item.type}`);
+          }
+
+          await markQueueItemDone(item.id!);
+          remaining--;
+          notifyListeners("syncing", remaining);
+        } catch (error: unknown) {
+          // If the network dropped mid-sync, don't surface this as a "sync error".
+          // Leave items queued and let the online listener / manual retry flush later.
+          if (isTransientNetworkError(error)) {
+            await updateQueueItem(item.id!, { status: "pending" });
+            abortedForNetwork = true;
+            notifyListeners("idle", remaining);
             break;
-          case "pin_update":
-            await processPinUpdate(item);
-            break;
-          case "job_create":
-          case "floor_create":
-          case "pin_create":
-            await processRecordCreate(item);
-            break;
-          case "pin_delete":
-          case "floor_delete":
-          case "job_delete":
-            await processRecordDelete(item);
-            break;
-          default:
-            throw new Error(`Unknown queue item type: ${item.type}`);
+          }
+
+          const message =
+            error instanceof Error ? error.message : "Unknown error";
+          await markQueueItemFailed(item.id!, message);
+          notifyListeners("error", remaining);
         }
+      }
 
-        await markQueueItemDone(item.id!);
-        remaining--;
-        notifyListeners("syncing", remaining);
-      } catch (error: unknown) {
-        // If the network dropped mid-sync, don't surface this as a "sync error".
-        // Leave items queued and let the online listener / manual retry flush later.
-        if (isTransientNetworkError(error)) {
-          await updateQueueItem(item.id!, { status: "pending" });
-          abortedForNetwork = true;
-          notifyListeners("idle", remaining);
-          break;
-        }
+      await clearDoneQueueItems();
 
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        await markQueueItemFailed(item.id!, message);
-        notifyListeners("error", remaining);
+      if (abortedForNetwork) {
+        break;
       }
     }
 
-    await clearDoneQueueItems();
-    if (remaining === 0) {
-      notifyListeners("idle", 0);
-      return;
-    }
-
-    // If we bailed due to transient network issues, keep the UI calm and queued.
     if (abortedForNetwork) {
-      notifyListeners("idle", remaining);
-      return;
+      notifyListeners("idle", (await getPendingQueueItems()).length);
     }
-
-    notifyListeners("error", remaining);
   } finally {
     isSyncing = false;
   }
@@ -158,15 +160,18 @@ async function processPhotoUpload(item: QueueItem) {
   const takenAt = (photoTakenAt as string) ?? new Date().toISOString();
 
   // Update pin record in Supabase with the photo_path
-  const { error: updateError } = await supabase
+  const { data: updatedPin, error: updateError } = await supabase
     .from("pins")
     .update({
       photo_path: storagePath,
       photo_taken_at: takenAt,
     })
-    .eq("id", pinId);
+    .eq("id", pinId)
+    .select("id")
+    .maybeSingle();
 
   if (updateError) throw updateError;
+  if (!updatedPin) throw new Error("Pin row not found while syncing photo metadata");
 
   // Update local IndexedDB to reflect synced state
   await updatePinPhotoLocal(pinId, storagePath, takenAt);

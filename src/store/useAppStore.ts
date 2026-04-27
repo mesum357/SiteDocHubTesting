@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Job, Pin } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import { precacheJobPdfs } from "@/lib/registerSW";
+import { normalizePinPhotoPath } from "@/lib/storagePaths";
 import { 
   addToQueue, 
   getCachedJobs, 
@@ -283,7 +284,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
         }
 
-        const photoPaths = pinRows.map((p) => p.photo_path).filter(Boolean);
+        const photoPaths = pinRows
+          .map((p) => normalizePinPhotoPath(p.photo_path))
+          .filter((path): path is string => Boolean(path));
         if (photoPaths.length > 0) {
           const { data: signedPhotos } = await supabase.storage.from("pin-photos").createSignedUrls(photoPaths, 3600);
           signedPhotos?.forEach((item) => {
@@ -354,7 +357,10 @@ export const useAppStore = create<AppState>((set, get) => ({
                     .filter((p) => p.floor_id === f.id)
                     .map(async (p) => {
                       const localBlob = await getCachedPinPhoto(p.id);
-                      const remoteUrl = p.photo_path ? photoUrlMap.get(p.photo_path) : undefined;
+                      const normalizedPhotoPath = normalizePinPhotoPath(p.photo_path);
+                      const remoteUrl = normalizedPhotoPath
+                        ? photoUrlMap.get(normalizedPhotoPath)
+                        : undefined;
                       return {
                         id: p.id,
                         name: p.name,
@@ -682,6 +688,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   attachPhoto: (jobId, floorId, pinId, photoUrl) => {
+    const normalizedPath = normalizePinPhotoPath(photoUrl);
     set((s) => ({
       jobs: s.jobs.map((j) =>
         j.id !== jobId
@@ -705,7 +712,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
     supabase
       .from("pins")
-      .update({ photo_path: photoUrl, photo_taken_at: new Date().toISOString() })
+      .update({ photo_path: normalizedPath, photo_taken_at: new Date().toISOString() })
       .eq("id", pinId)
       .then();
   },
@@ -832,10 +839,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         if (uploadErr) throw uploadErr;
 
-        await supabase
+        const { data: updatedPin, error: updateErr } = await supabase
           .from("pins")
           .update({ photo_path: filePath, photo_taken_at: now })
-          .eq("id", pinId);
+          .eq("id", pinId)
+          .select("id")
+          .maybeSingle();
+
+        if (updateErr) throw updateErr;
+        if (!updatedPin) throw new Error("Pin row not found while updating photo metadata");
           
       } catch (err) {
         console.log("[SiteDocHB] Upload failed or offline, queuing...", err);
