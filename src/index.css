@@ -10,9 +10,9 @@
   :root {
     /* Core surfaces — light base with blue hierarchy */
     --bg-base: 0 0% 100%;           /* #ffffff */
-    --bg-surface: 220 100% 98%;     /* #f5f8ff */
-    --bg-elevated: 219 100% 96%;    /* #ebf1ff */
-    --border-color: 221 100% 90%;   /* #ccd9ff */
+    --bg-surface: 220 100% 98%;
+    --bg-elevated: 219 100% 95%;
+    --border-color: 221 77% 84%;
 
     /* Brand & status */
     --accent: 222 87% 21%;          /* #072465 */
@@ -22,29 +22,29 @@
     --blue: 217 91% 45%;
 
     /* Text hierarchy */
-    --text-primary: 222 87% 21%;    /* #072465 */
-    --text-secondary: 221 48% 32%;  /* muted blue */
-    --text-muted: 221 30% 46%;
+    --text-primary: 222 47% 11%;    /* near-black on white surfaces */
+    --text-secondary: 222 25% 24%;
+    --text-muted: 222 15% 38%;
 
     /* shadcn token bridge — keep components functional */
     --background: 0 0% 100%;
-    --foreground: 222 87% 21%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 87% 21%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 87% 21%;
+    --foreground: 222 47% 11%;
+    --card: 220 100% 98%;
+    --card-foreground: 222 47% 11%;
+    --popover: 220 100% 98%;
+    --popover-foreground: 222 47% 11%;
     --primary: 0 0% 100%;
-    --primary-foreground: 222 87% 21%;
+    --primary-foreground: 222 47% 11%;
     --secondary: 222 87% 21%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 219 100% 96%;
-    --muted-foreground: 221 30% 46%;
-    --accent-bg: 219 100% 96%;
-    --accent-fg: 222 87% 21%;
+    --muted: 219 100% 95%;
+    --muted-foreground: 222 15% 38%;
+    --accent-bg: 219 100% 95%;
+    --accent-fg: 222 47% 11%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 221 100% 90%;
-    --input: 221 100% 90%;
+    --border: 221 77% 84%;
+    --input: 221 77% 84%;
     --ring: 222 87% 21%;
     --radius: 0.625rem;
   }
@@ -52,7 +52,7 @@
   /* App is dark by default; mirror values for .dark to prevent flicker */
   .dark {
     --background: 0 0% 100%;
-    --foreground: 222 87% 21%;
+    --foreground: 222 47% 11%;
   }
 }
 
