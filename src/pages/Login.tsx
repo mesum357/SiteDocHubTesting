@@ -72,7 +72,7 @@ export default function Login() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-base font-bold shadow-lg shadow-accent/20">
             <Camera size={24} className="text-white" />
           </div>
-          <h1 className="text-2xl font-display font-semibold tracking-tight text-white">
+          <h1 className="text-2xl font-display font-semibold tracking-tight text-ink">
             Sitedochub
           </h1>
           <p className="text-sm text-ink-soft">Sign in to your account</p>
