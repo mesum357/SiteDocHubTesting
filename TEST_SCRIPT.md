@@ -122,12 +122,12 @@
 
 ## 8. Insta360 X2 Camera Integration
 
-> **Setup:** Connect test device to Insta360 X2 WiFi hotspot (`INSTA360_XXXXXX`)
+> **Setup:** Join the camera Wi‑Fi (SSID may be custom — connection is detected via OSC, not SSID). Run `npm run dev -- --host 0.0.0.0 --port 8080` on a PC that can reach the camera gateway; open the app from the phone at `http://<PC_IP>:8080/site`. If `curl http://192.168.42.1/osc/info` fails from that PC, try `192.168.43.1` and set `INSTA360_OSC_PROXY_TARGET` in `.env`, then restart Vite.
 
 | # | Test Case | Expected | Status | Notes |
 |---|-----------|----------|--------|-------|
 | 8.1 | Camera disconnected state | Red dot + "Disconnected" label below capture button | ⬜ | |
-| 8.2 | Connect to Insta360 WiFi | Green dot + "Connected" label appears within 5s | ⬜ | |
+| 8.2 | Connect to camera Wi‑Fi + dev proxy reachable | Green dot + "Connected" label appears within ~5s | ⬜ | |
 | 8.3 | Connection status polls | Status updates automatically (5s interval) | ⬜ | |
 | 8.4 | Tap "Capture with Insta360" (connected) | Camera shutter fires, spinner shows | ⬜ | |
 | 8.5 | Photo auto-assigns to selected pin | Pin turns green, photo preview shows | ⬜ | |
@@ -137,7 +137,8 @@
 | 8.9 | Fallback to file picker | If SDK fails, user can still upload manually | ⬜ | |
 | 8.10 | Test on iOS Safari | Camera workflow works on iPhone | ⬜ | |
 | 8.11 | Test on Android Chrome | Camera workflow works on Android | ⬜ | |
-| 8.12 | Vite proxy forwarding | `/api/camera/osc/info` proxies to `192.168.42.1` | ⬜ | |
+| 8.12 | Vite dev/preview proxy | `/api/camera/osc/info` proxies to `INSTA360_OSC_PROXY_TARGET` (default `192.168.42.1`) | ⬜ | |
+| 8.13 | Automated OSC fallback | `npx playwright test tests/insta360-connection.spec.ts` (needs `E2E_*`) passes | ⬜ | |
 
 ---
 

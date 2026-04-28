@@ -53,6 +53,7 @@ async function main() {
         "tests/pin-placement-consistency.spec.ts",
         "tests/uploads-online.spec.ts",
         "tests/insta360-mocked.spec.ts",
+        "tests/insta360-connection.spec.ts",
         "tests/export-html.spec.ts",
         "tests/offline-workflow.e2e.spec.ts",
         "tests/offline-workflow-granular.spec.ts",

@@ -50,7 +50,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
     triggerCapture,
     batteryPercent,
     storageFreeMb,
-    connectionHint,
+    connectionExplainer,
   } = useInsta360();
 
   const [editingName, setEditingName] = useState(false);
@@ -230,7 +230,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                   : "border border-accent bg-transparent text-accent hover:bg-accent-soft",
                 (capturing || cameraCapturing) && "opacity-80",
               )}
-              title={cameraConnected ? "" : "Connect to INSTA360_XXXXXX WiFi first"}
+              title={cameraConnected ? "" : "Connect phone to camera Wi‑Fi; use dev/preview server so /api/camera can reach the camera."}
             >
               {(capturing || cameraCapturing) ? (
                 <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Triggering shutter…</>
@@ -238,21 +238,28 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                 <>📷 Capture with Insta360</>
               )}
             </button>
-            {/* Connection status label */}
-            <div className="mt-1.5 flex items-center justify-center gap-1.5">
-              <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-red-500")} />
-              <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-red-500")}>
-                {cameraConnected ? "Connected" : "Disconnected"}
-              </span>
+            {/* Connection status — web apps cannot read Wi‑Fi SSID; OSC reachability = "camera network" */}
+            <div className="mt-1.5 flex flex-col items-center gap-0.5">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-red-500")} />
+                <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-red-500")}>
+                  {cameraConnected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+              {cameraConnected && (
+                <span className="text-center text-[10px] text-ink-secondary">
+                  Insta360 · camera network (OSC)
+                </span>
+              )}
             </div>
-            <div className="mt-1 text-center text-[10px] text-ink-secondary">
+            <div className="mt-1 text-center text-[10px] text-ink-secondary leading-snug">
               {cameraConnected ? (
                 <>
                   {batteryPercent !== null ? `Battery ${Math.round(batteryPercent)}%` : "Battery —"} ·{" "}
                   {storageFreeMb !== null ? `${Math.round(storageFreeMb)}MB free` : "Storage —"}
                 </>
               ) : (
-                connectionHint
+                connectionExplainer
               )}
             </div>
             {captureErrorMsg && (

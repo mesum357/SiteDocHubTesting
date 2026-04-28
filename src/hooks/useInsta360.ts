@@ -65,14 +65,20 @@ export const useInsta360 = () => {
     }
   }, []);
 
+  const connectionExplainer =
+    typeof window !== "undefined" && window.location.protocol === "https:"
+      ? "This https page cannot talk to the camera on your Wi‑Fi. Use your PC on camera Wi‑Fi, run npm run dev -- --host 0.0.0.0 --port 8080, then open http://<PC-LAN-IP>:8080/site on this phone."
+      : "Join the camera Wi‑Fi. Open this app at http://<PC-LAN-IP>:8080 (Vite dev or preview) with the PC on the same hotspot so Capture can reach the camera.";
+
   return {
     connected,
     capturing,
     error,
     batteryPercent,
     storageFreeMb,
-    connectionHint:
-      "Connect to INSTA360_XXXXXX WiFi in Settings, then return to this app.",
+    /** @deprecated use connectionExplainer */
+    connectionHint: connectionExplainer,
+    connectionExplainer,
     triggerCapture,
   };
 };
