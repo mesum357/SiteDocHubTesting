@@ -257,7 +257,9 @@ const PanoramaViewer = ({ photoUrl, pinName, photos = [], initialPhotoId, onClos
           />
         </div>
         {photos.length > 0 && (
-          <aside className="z-[140] w-[180px] shrink-0 border-l border-white/15 bg-black/55 p-2 backdrop-blur-sm sm:w-[220px] md:w-[280px] md:p-3">
+          <aside
+            className="z-[140] w-[132px] shrink-0 border-l border-white/15 bg-black/25 p-2 backdrop-blur-sm opacity-55 transition-all duration-200 hover:w-[220px] hover:bg-black/60 hover:opacity-100 sm:w-[150px] sm:hover:w-[260px] md:w-[170px] md:hover:w-[280px] md:p-3"
+          >
             <div className="mb-2 text-xs font-medium text-white/90">Pin Photos ({photos.length})</div>
             <div className="space-y-2 overflow-y-auto pr-1 max-h-[calc(100vh-120px)]">
               {photos.map((p, index) => (
@@ -273,7 +275,7 @@ const PanoramaViewer = ({ photoUrl, pinName, photos = [], initialPhotoId, onClos
                   <img
                     src={p.photoUrl}
                     alt={`${pinName} ${index + 1}`}
-                    className="h-20 w-full rounded object-cover"
+                    className="h-14 w-full rounded object-cover sm:h-16 md:h-20"
                   />
                   <div className="mt-1 text-[11px] text-white/90">
                     Upload {index + 1}

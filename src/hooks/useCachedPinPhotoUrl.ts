@@ -26,17 +26,17 @@ export function useCachedPinPhotoUrl(pinId: string | undefined, remoteUrl: strin
       }
 
       try {
-        const cached = await getCachedPinPhoto(pinId);
-        if (cached) {
-          objectUrl = URL.createObjectURL(cached);
-          if (!cancelled) setLocalUrl(objectUrl);
-          return;
-        }
-
         // If the caller already provided a local/blob URL (e.g. immediate preview
         // right after offline upload/capture), use it directly.
         if (remoteUrl && !isHttpUrl(remoteUrl)) {
           if (!cancelled) setLocalUrl(remoteUrl);
+          return;
+        }
+
+        const cached = await getCachedPinPhoto(pinId);
+        if (cached) {
+          objectUrl = URL.createObjectURL(cached);
+          if (!cancelled) setLocalUrl(objectUrl);
           return;
         }
 
