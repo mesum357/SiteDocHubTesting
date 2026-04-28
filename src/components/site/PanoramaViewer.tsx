@@ -258,7 +258,7 @@ const PanoramaViewer = ({ photoUrl, pinName, photos = [], initialPhotoId, onClos
         </div>
         {photos.length > 0 && (
           <aside
-            className="z-[140] w-[104px] shrink-0 border-l border-white/15 bg-black/20 p-2 backdrop-blur-sm opacity-50 transition-all duration-200 hover:w-[220px] hover:bg-black/60 hover:opacity-100 sm:w-[120px] sm:hover:w-[260px] md:w-[140px] md:hover:w-[280px] md:p-3"
+            className="z-[140] w-[104px] shrink-0 border-l border-white/15 bg-black/20 p-2 backdrop-blur-sm opacity-10 transition-all duration-200 hover:w-[220px] hover:bg-black/60 hover:opacity-100 sm:w-[120px] sm:hover:w-[260px] md:w-[140px] md:hover:w-[280px] md:p-3"
           >
             <div className="mb-2 text-xs font-medium text-white/90">Pin Photos ({photos.length})</div>
             <div className="space-y-2 overflow-y-auto pr-1 max-h-[calc(100vh-120px)]">
