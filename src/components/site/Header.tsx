@@ -91,9 +91,9 @@ const Header = ({ onNewJob, onShare }: Props) => {
   };
 
   return (
-    <header className="glass sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-hairline px-3 md:px-5">
+    <header className="glass sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-hairline px-2 sm:px-3 md:h-16 md:px-5">
       {/* Brand */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex min-w-0 shrink-0 items-center gap-2">
         <button
           onClick={handleMobileRefresh}
           aria-label="Refresh"
@@ -104,19 +104,19 @@ const Header = ({ onNewJob, onShare }: Props) => {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-base font-bold shadow-lg shadow-accent/20">
           <Camera size={16} className="text-white" />
         </div>
-        <span className="font-display text-sm md:text-base font-semibold tracking-tight !text-white">
+        <span className="font-display text-sm font-semibold tracking-tight text-ink md:text-base max-[350px]:hidden">
           Sitedochub
         </span>
       </div>
 
       {/* Job selector */}
-      <div className="relative">
+      <div className="relative flex min-w-0 flex-1 justify-center">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="lift-on-hover flex items-center gap-2 rounded-full border border-hairline bg-elevated px-3 py-1.5 text-sm font-medium text-ink hover:border-accent"
+          className="lift-on-hover flex w-full max-w-[180px] items-center gap-1.5 rounded-full border border-hairline bg-elevated px-2.5 py-1.5 text-xs font-medium text-ink hover:border-accent sm:max-w-[220px] sm:px-3 sm:text-sm md:max-w-none"
           aria-label="Select job"
         >
-          <span className="max-w-[140px] md:max-w-none truncate font-display">
+          <span className="max-w-[120px] truncate font-display sm:max-w-[150px] md:max-w-none">
             {job?.name ?? "Select a job"}
           </span>
           <ChevronDown className={cn("h-4 w-4 text-ink-secondary transition-transform", open && "rotate-180")} />
@@ -177,7 +177,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
       </div>
 
       {/* Right cluster */}
-      <div className="flex items-center gap-1.5 md:gap-2">
+      <div className="flex shrink-0 items-center gap-1 md:gap-2">
         <button
           onClick={handleSyncClick}
           aria-label="Sync status"
@@ -195,7 +195,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
                 ? <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                 : <WifiOff className="h-3.5 w-3.5 text-amber-400" />
               }
-              <span className="text-ink-secondary">{syncLabel}</span>
+              <span className="hidden sm:inline text-ink-secondary">{syncLabel}</span>
             </>
           )}
         </button>

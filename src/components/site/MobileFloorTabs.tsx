@@ -35,18 +35,18 @@ const MobileFloorTabs = () => {
   return (
     <div
       className={cn(
-        "sticky top-14 z-20 md:hidden border-b border-hairline bg-surface/95 px-3 py-2 backdrop-blur-sm transition-shadow",
+        "sticky top-14 z-20 border-b border-hairline bg-surface/95 px-2 py-1.5 backdrop-blur-sm transition-shadow md:hidden",
         elevated ? "shadow-[0_8px_18px_-14px_rgba(0,0,0,0.8)]" : "shadow-none"
       )}
     >
-      <div className="flex gap-2 overflow-x-auto">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {job.floors.map((f) => (
           <button
             key={f.id}
             ref={activeFloorId === f.id ? activeTabRef : null}
             onClick={() => setActiveFloor(f.id)}
             className={cn(
-              "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors sm:px-3 sm:text-xs",
               activeFloorId === f.id
                 ? "border-accent bg-accent text-accent-foreground shadow-[0_6px_16px_-8px_hsl(var(--accent)/0.8)]"
                 : "border-hairline bg-elevated text-ink-secondary"
@@ -91,7 +91,7 @@ const MobileFloorTabs = () => {
           ) : (
             <button
               onClick={() => setAddingFloor(true)}
-              className="shrink-0 rounded-full border border-accent bg-accent-soft px-3 py-1 text-xs font-medium text-accent"
+              className="shrink-0 rounded-full border border-accent bg-accent-soft px-2.5 py-1 text-[11px] font-medium text-accent sm:px-3 sm:text-xs"
             >
               Add floor
             </button>
