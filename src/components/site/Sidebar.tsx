@@ -159,7 +159,7 @@ const Sidebar = ({ onNewJob }: Props) => {
                 {f.pdfUrl ? (
                   <Check className="h-3 w-3 text-ok" />
                 ) : (
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" title="No floor plan uploaded" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" title="No floor plan uploaded" />
                 )}
                 {f.id === floor?.id && <span className="absolute inset-x-2 -bottom-0.5 h-[2px] rounded-full bg-accent" />}
               </button>
@@ -169,7 +169,7 @@ const Sidebar = ({ onNewJob }: Props) => {
                   <AlertDialogTrigger asChild>
                     <button
                       aria-label={`Delete floor ${f.name}`}
-                      className="ml-0.5 grid h-5 w-5 place-items-center rounded-full text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+                      className="ml-0.5 grid h-5 w-5 place-items-center rounded-full text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -183,7 +183,7 @@ const Sidebar = ({ onNewJob }: Props) => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => handleDeleteFloor(f.id, f.name)} className="bg-red-600 hover:bg-red-700">
+                      <AlertDialogAction onClick={() => handleDeleteFloor(f.id, f.name)} className="bg-danger hover:bg-danger/90">
                         Delete Floor
                       </AlertDialogAction>
                     </AlertDialogFooter>

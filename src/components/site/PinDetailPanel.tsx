@@ -241,8 +241,8 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
             {/* Connection status — web apps cannot read Wi‑Fi SSID; OSC reachability = "camera network" */}
             <div className="mt-1.5 flex flex-col items-center gap-0.5">
               <div className="flex items-center justify-center gap-1.5">
-                <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-red-500")} />
-                <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-red-500")}>
+                <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-danger")} />
+                <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-danger")}>
                   {cameraConnected ? "Connected" : "Disconnected"}
                 </span>
               </div>
@@ -263,7 +263,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
               )}
             </div>
             {captureErrorMsg && (
-              <div className="mt-1 text-center text-[10px] font-medium text-red-500">
+              <div className="mt-1 text-center text-[10px] font-medium text-danger">
                 {captureErrorMsg}
               </div>
             )}
@@ -327,7 +327,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
           {canPerform(role, "DELETE_PIN") && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <button className="flex w-full items-center justify-center gap-2 rounded-md border border-red-500/30 py-2 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10">
+                <button className="flex w-full items-center justify-center gap-2 rounded-md border border-danger/30 py-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10">
                   <Trash2 className="h-3.5 w-3.5" /> Delete Pin
                 </button>
               </AlertDialogTrigger>
@@ -340,7 +340,7 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeletePin} className="bg-red-600 hover:bg-red-700">
+                  <AlertDialogAction onClick={handleDeletePin} className="bg-danger hover:bg-danger/90">
                     Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -355,6 +355,11 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
         <PanoramaViewer
           photoUrl={photoSrc}
           pinName={pin.name}
+          photos={(pin.photos ?? []).map((p) => ({
+            id: p.id,
+            photoUrl: p.photoUrl,
+            capturedAt: p.capturedAt,
+          }))}
           onClose={() => setViewerOpen(false)}
         />
       )}

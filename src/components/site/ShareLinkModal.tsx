@@ -114,7 +114,7 @@ const ShareLinkModal = ({ open, onOpenChange }: Props) => {
           </button>
         </div>
 
-        {error && <div className="mt-2 text-[11px] text-amber-400">{error}</div>}
+        {error && <div className="mt-2 text-[11px] text-danger">{error}</div>}
 
         <div className="mt-4">
           <label className="block">

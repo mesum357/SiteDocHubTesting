@@ -8,6 +8,14 @@ export interface Pin {
   photoUrl?: string;
   notes?: string;
   capturedAt?: string; // ISO
+  photos?: PinPhotoVersion[];
+}
+
+export interface PinPhotoVersion {
+  id: string;
+  pinId: string;
+  photoUrl: string;
+  capturedAt: string; // ISO
 }
 
 export interface Floor {

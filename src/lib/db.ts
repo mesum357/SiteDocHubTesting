@@ -33,6 +33,14 @@ export interface DBPin {
   created_at: string;
 }
 
+export interface DBPinPhotoVersion {
+  id: string;
+  pin_id: string;
+  photo_path: string;
+  photo_taken_at: string;
+  created_at: string;
+}
+
 export interface FloorPdf {
   floor_id: string;
   pdfBlob: Blob;
@@ -85,6 +93,11 @@ interface SiteDocHBDB extends DBSchema {
     key: string;
     value: { pin_id: string; blob: Blob; cachedAt: string };
   };
+  pin_photo_versions: {
+    key: string;
+    value: DBPinPhotoVersion;
+    indexes: { "by-pin_id": string; "by-photo_taken_at": string };
+  };
   upload_queue: {
     key: number;
     value: QueueItem;
@@ -99,7 +112,7 @@ let dbInstance: IDBPDatabase<SiteDocHBDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<SiteDocHBDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<SiteDocHBDB>("SiteDocHB-db", 2, {
+  dbInstance = await openDB<SiteDocHBDB>("SiteDocHB-db", 3, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         // jobs store
@@ -132,6 +145,12 @@ export async function getDB(): Promise<IDBPDatabase<SiteDocHBDB>> {
       if (oldVersion < 2) {
         // pin_photos store added in v2
         db.createObjectStore("pin_photos", { keyPath: "pin_id" });
+      }
+
+      if (oldVersion < 3) {
+        const photoVersions = db.createObjectStore("pin_photo_versions", { keyPath: "id" });
+        photoVersions.createIndex("by-pin_id", "pin_id");
+        photoVersions.createIndex("by-photo_taken_at", "photo_taken_at");
       }
     },
   });
@@ -265,6 +284,34 @@ export async function getCachedPinPhoto(pinId: string): Promise<Blob | null> {
   const db = await getDB();
   const record = await db.get("pin_photos", pinId);
   return record?.blob ?? null;
+}
+
+export async function cachePinPhotoVersion(version: DBPinPhotoVersion) {
+  const db = await getDB();
+  await db.put("pin_photo_versions", version);
+}
+
+export async function cachePinPhotoVersions(versions: DBPinPhotoVersion[]) {
+  const db = await getDB();
+  const tx = db.transaction("pin_photo_versions", "readwrite");
+  await Promise.all(versions.map((v) => tx.store.put(v)));
+  await tx.done;
+}
+
+export async function getCachedPinPhotoVersions(pinId: string): Promise<DBPinPhotoVersion[]> {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex("pin_photo_versions", "by-pin_id", pinId);
+  return rows.sort(
+    (a, b) => new Date(b.photo_taken_at).getTime() - new Date(a.photo_taken_at).getTime()
+  );
+}
+
+export async function deletePinPhotoVersionsByPin(pinId: string) {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex("pin_photo_versions", "by-pin_id", pinId);
+  const tx = db.transaction("pin_photo_versions", "readwrite");
+  await Promise.all(rows.map((row) => tx.store.delete(row.id)));
+  await tx.done;
 }
 
 // ─── UPLOAD QUEUE ─────────────────────────────────────────────────────────────

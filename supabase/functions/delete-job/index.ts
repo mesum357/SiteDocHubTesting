@@ -79,8 +79,19 @@ Deno.serve(async (req) => {
   const { data: pins } = floorIds.length
     ? await svc
         .from("pins")
-        .select("photo_path")
+        .select("id, photo_path")
         .in("floor_id", floorIds)
+    : { data: [] as Array<{ id: string; photo_path: string | null }> };
+
+  const pinIds = (pins ?? [])
+    .map((p) => p.id)
+    .filter((id): id is string => Boolean(id));
+
+  const { data: pinImages } = pinIds.length
+    ? await svc
+        .from("pin_images")
+        .select("photo_path")
+        .in("pin_id", pinIds)
     : { data: [] as Array<{ photo_path: string | null }> };
 
   const pdfPaths = (floors ?? [])
@@ -89,14 +100,18 @@ Deno.serve(async (req) => {
   const photoPaths = (pins ?? [])
     .map((p) => p.photo_path)
     .filter((p): p is string => Boolean(p));
+  const historyPhotoPaths = (pinImages ?? [])
+    .map((p) => p.photo_path)
+    .filter((p): p is string => Boolean(p));
+  const allPhotoPaths = [...new Set([...photoPaths, ...historyPhotoPaths])];
 
   // Best-effort storage cleanup (ignore per-file errors).
   if (pdfPaths.length) {
     await svc.storage.from("floor-plans").remove(pdfPaths).catch(() => {});
   }
-  if (photoPaths.length) {
-    await svc.storage.from("pin-photos").remove(photoPaths).catch(() => {});
-    await svc.storage.from("site-photos").remove(photoPaths).catch(() => {});
+  if (allPhotoPaths.length) {
+    await svc.storage.from("pin-photos").remove(allPhotoPaths).catch(() => {});
+    await svc.storage.from("site-photos").remove(allPhotoPaths).catch(() => {});
   }
 
   // Delete the job (DB cascades: floors/pins/shares).

@@ -18,6 +18,13 @@ interface SharePin {
   note: string | null;
   photo_taken_at: string | null;
   photoUrl: string | null;
+  photos?: Array<{
+    id: string;
+    pin_id: string;
+    photo_path: string;
+    photo_taken_at: string;
+    photoUrl: string | null;
+  }>;
 }
 
 interface ShareFloor {
@@ -53,7 +60,12 @@ const ShareView = () => {
   const [pins, setPins] = useState<SharePin[]>([]);
   const [activeFloorId, setActiveFloorId] = useState("");
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
-  const [viewerPin, setViewerPin] = useState<{ name: string; url: string } | null>(null);
+  const [viewerPin, setViewerPin] = useState<{
+    name: string;
+    url: string;
+    photos: Array<{ id: string; photoUrl: string; capturedAt?: string }>;
+    initialPhotoId?: string;
+  } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const pinCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -216,7 +228,7 @@ const ShareView = () => {
   if (status === "expired") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-base text-ink">
-        <AlertTriangle className="h-10 w-10 text-amber-400" />
+        <AlertTriangle className="h-10 w-10 text-accent" />
         <h1 className="mt-4 font-display text-xl">Link Expired</h1>
         <p className="mt-2 text-sm text-ink-secondary">This share link has expired. Ask the sender for a new one.</p>
       </div>
@@ -226,7 +238,7 @@ const ShareView = () => {
   if (status === "error" || !job) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-base text-ink">
-        <AlertTriangle className="h-10 w-10 text-red-500" />
+        <AlertTriangle className="h-10 w-10 text-danger" />
         <h1 className="mt-4 font-display text-xl">Link Not Found</h1>
         <p className="mt-2 text-sm text-ink-secondary">{errorMsg || "This share link is invalid."}</p>
       </div>
@@ -414,7 +426,18 @@ const ShareView = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setViewerPin({ name: pin.name, url: pin.photoUrl! });
+                                setViewerPin({
+                                  name: pin.name,
+                                  url: pin.photoUrl!,
+                                  initialPhotoId: pin.photos?.[0]?.id,
+                                  photos: (pin.photos ?? [])
+                                    .map((p) => ({
+                                      id: p.id,
+                                      photoUrl: p.photoUrl ?? "",
+                                      capturedAt: p.photo_taken_at,
+                                    }))
+                                    .filter((p) => Boolean(p.photoUrl)),
+                                });
                               }}
                               className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-display text-accent-foreground"
                             >
@@ -456,6 +479,8 @@ const ShareView = () => {
         <PanoramaViewer
           photoUrl={viewerPin.url}
           pinName={viewerPin.name}
+          photos={viewerPin.photos}
+          initialPhotoId={viewerPin.initialPhotoId}
           onClose={() => setViewerPin(null)}
         />
       )}

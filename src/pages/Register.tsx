@@ -89,13 +89,13 @@ export default function Register() {
         </div>
 
         {errorMsg && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-500">
+          <div className="rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
             {errorMsg}
           </div>
         )}
 
         {successMsg && (
-          <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-500">
+          <div className="rounded-lg border border-ok/20 bg-ok/10 p-3 text-sm text-ok">
             {successMsg}
           </div>
         )}

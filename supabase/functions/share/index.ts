@@ -113,27 +113,57 @@ Deno.serve(async (req) => {
     .in("floor_id", floorIds)
     .order("pin_order");
 
-  // Generate signed URLs for photos
+  const pinIds = (pins ?? [])
+    .map((p: { id: string }) => p.id)
+    .filter((id): id is string => Boolean(id));
+  const { data: pinImages } = pinIds.length
+    ? await supabase
+        .from("pin_images")
+        .select("id, pin_id, photo_path, photo_taken_at")
+        .in("pin_id", pinIds)
+        .order("photo_taken_at", { ascending: false })
+    : { data: [] as Array<{ id: string; pin_id: string; photo_path: string; photo_taken_at: string }> };
+
+  // Generate signed URLs for latest pin photo + pin image history.
+  const allPhotoPaths = [
+    ...((pins ?? []).map((p: { photo_path: string | null }) => p.photo_path).filter((p): p is string => Boolean(p))),
+    ...((pinImages ?? []).map((p) => p.photo_path).filter((p): p is string => Boolean(p))),
+  ];
+  const uniquePhotoPaths = [...new Set(allPhotoPaths)];
+  const signedPhotoUrlByPath = new Map<string, string>();
+  if (uniquePhotoPaths.length > 0) {
+    const { data: signedPhotosData } = await supabase.storage
+      .from("pin-photos")
+      .createSignedUrls(uniquePhotoPaths, 3600);
+    signedPhotosData?.forEach((item) => {
+      if (!item.error && item.signedUrl) signedPhotoUrlByPath.set(item.path, item.signedUrl);
+    });
+  }
+
   const signedPins = await Promise.all(
     (pins ?? []).map(
       async (pin: { photo_path: string | null; [key: string]: unknown }) => {
-        let photoUrl = null;
-        if (pin.photo_path) {
-          // Current uploads use "pin-photos"; fallback to legacy "site-photos".
-          const { data: pinPhotosData, error: pinPhotosError } = await supabase.storage
-            .from("pin-photos")
+        const pinId = pin.id as string;
+        let photoUrl = pin.photo_path ? signedPhotoUrlByPath.get(pin.photo_path) ?? null : null;
+        if (!photoUrl && pin.photo_path) {
+          const { data: legacyData } = await supabase.storage
+            .from("site-photos")
             .createSignedUrl(pin.photo_path, 3600);
-
-          if (!pinPhotosError && pinPhotosData?.signedUrl) {
-            photoUrl = pinPhotosData.signedUrl;
-          } else {
-            const { data: legacyData } = await supabase.storage
-              .from("site-photos")
-              .createSignedUrl(pin.photo_path, 3600);
-            photoUrl = legacyData?.signedUrl ?? null;
-          }
+          photoUrl = legacyData?.signedUrl ?? null;
         }
-        return { ...pin, photoUrl };
+
+        const photos = (pinImages ?? [])
+          .filter((img) => img.pin_id === pinId)
+          .map((img) => ({
+            id: img.id,
+            pin_id: img.pin_id,
+            photo_path: img.photo_path,
+            photo_taken_at: img.photo_taken_at,
+            photoUrl: signedPhotoUrlByPath.get(img.photo_path) ?? null,
+          }))
+          .filter((img) => Boolean(img.photoUrl));
+
+        return { ...pin, photoUrl, photos };
       }
     )
   );

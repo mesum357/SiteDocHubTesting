@@ -5,11 +5,16 @@ import { createPortal } from "react-dom";
 interface Props {
   photoUrl: string;
   pinName: string;
+  photos?: Array<{ id: string; photoUrl: string; capturedAt?: string }>;
+  initialPhotoId?: string;
   onClose: () => void;
 }
 
-const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
+const PanoramaViewer = ({ photoUrl, pinName, photos = [], initialPhotoId, onClose }: Props) => {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [activePhotoId, setActivePhotoId] = useState<string>("");
+  const activePhoto = photos.find((p) => p.id === activePhotoId);
+  const activePhotoUrl = activePhoto?.photoUrl || photoUrl;
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
@@ -26,6 +31,17 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
   const lastMoveRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const inertiaFrameRef = useRef<number | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (photos.length > 0) {
+      const initial = initialPhotoId && photos.some((p) => p.id === initialPhotoId)
+        ? initialPhotoId
+        : photos[0].id;
+      setActivePhotoId((prev) => prev || initial);
+      return;
+    }
+    setActivePhotoId("");
+  }, [photos, initialPhotoId]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -46,8 +62,8 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
       setOffsetX(0);
       setOffsetY(0);
     };
-    img.src = photoUrl;
-  }, [photoUrl]);
+    img.src = activePhotoUrl;
+  }, [activePhotoUrl]);
 
   useEffect(() => {
     const update = () => {
@@ -153,6 +169,17 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
     };
   }, []);
 
+  const formatCapturedAt = (iso?: string) => {
+    if (!iso) return "Unknown date";
+    return new Date(iso).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
   const viewer = (
     <div className="fixed inset-0 z-[120] bg-black animate-fade-up">
       <button
@@ -193,9 +220,10 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
           <Maximize className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div
-        ref={viewportRef}
-        className="h-full w-full overflow-hidden touch-none"
+      <div className="flex h-full w-full">
+        <div
+          ref={viewportRef}
+          className="h-full flex-1 overflow-hidden touch-none"
         onPointerDown={(e) => {
           activePointerIdRef.current = e.pointerId;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -216,17 +244,48 @@ const PanoramaViewer = ({ photoUrl, pinName, onClose }: Props) => {
           endDrag();
         }}
       >
-        <img
-          src={photoUrl}
-          alt={`${pinName} panorama`}
-          className="max-w-none select-none"
-          draggable={false}
-          style={{
-            transform: `translate3d(${offsetX}px, ${offsetY}px, 0)`,
-            height: renderedHeight > 0 ? `${renderedHeight}px` : "135vh",
-            width: renderedWidth > 0 ? `${renderedWidth}px` : "200vw",
-          }}
-        />
+          <img
+            src={activePhotoUrl}
+            alt={`${pinName} panorama`}
+            className="max-w-none select-none"
+            draggable={false}
+            style={{
+              transform: `translate3d(${offsetX}px, ${offsetY}px, 0)`,
+              height: renderedHeight > 0 ? `${renderedHeight}px` : "135vh",
+              width: renderedWidth > 0 ? `${renderedWidth}px` : "200vw",
+            }}
+          />
+        </div>
+        {photos.length > 0 && (
+          <aside className="z-[140] w-[180px] shrink-0 border-l border-white/15 bg-black/55 p-2 backdrop-blur-sm sm:w-[220px] md:w-[280px] md:p-3">
+            <div className="mb-2 text-xs font-medium text-white/90">Pin Photos ({photos.length})</div>
+            <div className="space-y-2 overflow-y-auto pr-1 max-h-[calc(100vh-120px)]">
+              {photos.map((p, index) => (
+                <button
+                  key={p.id}
+                  onClick={() => setActivePhotoId(p.id)}
+                  className={`w-full rounded-md border p-2 text-left transition-colors ${
+                    p.id === activePhotoId
+                      ? "border-white/70 bg-white/15"
+                      : "border-white/20 bg-black/25 hover:bg-white/10"
+                  }`}
+                >
+                  <img
+                    src={p.photoUrl}
+                    alt={`${pinName} ${index + 1}`}
+                    className="h-20 w-full rounded object-cover"
+                  />
+                  <div className="mt-1 text-[11px] text-white/90">
+                    Upload {index + 1}
+                  </div>
+                  <div className="text-[10px] text-white/70">
+                    {formatCapturedAt(p.capturedAt)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );

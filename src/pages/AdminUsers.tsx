@@ -138,10 +138,10 @@ export default function AdminUsers() {
                       </td>
                       <td className="px-6 py-4">
                         <div className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium ${
-                          u.status === 'approved' ? 'bg-green-500/10 text-green-500' :
-                          u.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
-                          u.status === 'banned' ? 'bg-red-500/10 text-red-500' :
-                          'bg-amber-500/10 text-amber-500'
+                          u.status === 'approved' ? 'bg-ok/10 text-ok' :
+                          u.status === 'rejected' ? 'bg-danger/10 text-danger' :
+                          u.status === 'banned' ? 'bg-danger/10 text-danger' :
+                          'bg-accent/10 text-accent'
                         }`}>
                           {u.status === 'approved' && <Check className="h-3 w-3" />}
                           {u.status === 'rejected' && <X className="h-3 w-3" />}
@@ -157,14 +157,14 @@ export default function AdminUsers() {
                             <>
                               <button
                                 onClick={() => handleStatusChange(u.id, 'approved')}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-green-500 hover:bg-green-500/10 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-ok hover:bg-ok/10 transition-colors"
                                 title="Approve"
                               >
                                 <Check className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleStatusChange(u.id, 'rejected')}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-red-500 hover:bg-red-500/10 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-danger hover:bg-danger/10 transition-colors"
                                 title="Reject"
                               >
                                 <X className="h-4 w-4" />
@@ -177,14 +177,14 @@ export default function AdminUsers() {
                             <>
                               <button
                                 onClick={() => handleStatusChange(u.id, 'banned')}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-red-500 hover:bg-red-500/10 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-danger hover:bg-danger/10 transition-colors"
                                 title="Ban User"
                               >
                                 <ShieldAlert className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteUser(u.id)}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-ink-secondary hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-ink-secondary hover:bg-danger/10 hover:text-danger transition-colors"
                                 title="Delete User"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -197,14 +197,14 @@ export default function AdminUsers() {
                             <>
                               <button
                                 onClick={() => handleStatusChange(u.id, 'approved')}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-green-500 hover:bg-green-500/10 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-ok hover:bg-ok/10 transition-colors"
                                 title="Re-Approve"
                               >
                                 <Check className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteUser(u.id)}
-                                className="rounded-lg border border-hairline bg-surface p-2 text-ink-secondary hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                                className="rounded-lg border border-hairline bg-surface p-2 text-ink-secondary hover:bg-danger/10 hover:text-danger transition-colors"
                                 title="Delete User"
                               >
                                 <Trash2 className="h-4 w-4" />

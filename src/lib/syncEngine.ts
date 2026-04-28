@@ -153,11 +153,12 @@ export async function flushUploadQueue(): Promise<void> {
 // ─── QUEUE ITEM PROCESSORS ───────────────────────────────────────────────────
 
 async function processPhotoUpload(item: QueueItem) {
-  const { pinId, storagePath, photoBlob, photoTakenAt } = item.payload as {
+  const { pinId, storagePath, photoBlob, photoTakenAt, photoId } = item.payload as {
     pinId: string;
     storagePath: string;
     photoBlob: Blob;
     photoTakenAt?: string;
+    photoId?: string;
   };
 
   if (!photoBlob || !storagePath) {
@@ -169,7 +170,7 @@ async function processPhotoUpload(item: QueueItem) {
     .from("pin-photos")
     .upload(storagePath, photoBlob, {
       contentType: "image/jpeg",
-      upsert: true,
+      upsert: false,
     });
 
   if (uploadError) throw uploadError;
@@ -189,6 +190,14 @@ async function processPhotoUpload(item: QueueItem) {
 
   if (updateError) throw updateError;
   if (!updatedPin) throw new Error("Pin row not found while syncing photo metadata");
+
+  const { error: imageErr } = await supabase.from("pin_images").insert({
+    id: photoId ?? crypto.randomUUID(),
+    pin_id: pinId,
+    photo_path: storagePath,
+    photo_taken_at: takenAt,
+  });
+  if (imageErr) throw imageErr;
 
   // Update local IndexedDB to reflect synced state
   await updatePinPhotoLocal(pinId, storagePath, takenAt);

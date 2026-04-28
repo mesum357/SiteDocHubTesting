@@ -157,7 +157,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
               {job && canPerform(role, "DELETE_JOB") && (
                 <button
                   onClick={() => setDeleteOpen(true)}
-                  className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/10"
+                  className="flex w-full items-center gap-2 border-t border-hairline px-3 py-2.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
                 >
                   <Trash2 className="h-4 w-4" /> Delete Job…
                 </button>
@@ -192,8 +192,8 @@ const Header = ({ onNewJob, onShare }: Props) => {
           {syncColor === "amber" && (
             <>
               {syncStatus === "error"
-                ? <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                : <WifiOff className="h-3.5 w-3.5 text-amber-400" />
+                ? <AlertTriangle className="h-3.5 w-3.5 text-accent" />
+                : <WifiOff className="h-3.5 w-3.5 text-accent" />
               }
               <span className="hidden sm:inline text-ink-secondary">{syncLabel}</span>
             </>
@@ -349,7 +349,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
                 value={deleteConfirm}
                 onChange={(e) => setDeleteConfirm(e.target.value)}
                 placeholder={job?.name ?? ""}
-                className="mt-2 w-full rounded-md border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-red-500"
+                className="mt-2 w-full rounded-md border border-hairline bg-elevated px-3 py-2 text-sm text-ink outline-none focus:border-danger"
               />
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -358,7 +358,7 @@ const Header = ({ onNewJob, onShare }: Props) => {
             <AlertDialogAction
               onClick={handleDeleteJob}
               disabled={!deleteEnabled || deleting}
-              className={cn("bg-red-600 hover:bg-red-700", (!deleteEnabled || deleting) && "opacity-60")}
+              className={cn("bg-danger hover:bg-danger/90", (!deleteEnabled || deleting) && "opacity-60")}
             >
               {deleting ? "Deleting…" : "Delete Job"}
             </AlertDialogAction>

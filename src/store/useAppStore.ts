@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Job, Pin } from "@/types";
+import type { Job, Pin, PinPhotoVersion } from "@/types";
 import { supabase } from "@/lib/supabaseClient";
 import { precacheJobPdfs } from "@/lib/registerSW";
 import { normalizePinPhotoPath } from "@/lib/storagePaths";
@@ -20,10 +20,14 @@ import {
   updatePinPhotoLocal,
   cachePinPhoto,
   getCachedPinPhoto,
+  cachePinPhotoVersion,
+  cachePinPhotoVersions,
+  getCachedPinPhotoVersions,
+  deletePinPhotoVersionsByPin,
   getCachedFloorPdf,
   cacheFloorPdf,
 } from "@/lib/db";
-import type { DBJob, DBFloor, DBPin } from "@/lib/db";
+import type { DBJob, DBFloor, DBPin, DBPinPhotoVersion } from "@/lib/db";
 
 /** After a remote reload, keep the user's current job/floor when they still exist; merge in local-only jobs not yet on the server. */
 function pickActiveAfterLoad(
@@ -216,6 +220,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       let jobRows: DBJob[] = [];
       let floorRows: DBFloor[] = [];
       let pinRows: DBPin[] = [];
+      let pinPhotoRows: DBPinPhotoVersion[] = [];
 
       if (navigator.onLine) {
         // Fetch jobs from Supabase
@@ -252,10 +257,22 @@ export const useAppStore = create<AppState>((set, get) => ({
           pinRows = (pins ?? []) as DBPin[];
         }
 
+        if (pinRows.length > 0) {
+          const pinIds = pinRows.map((p) => p.id);
+          const { data: pinPhotos, error: pinPhotosErr } = await supabase
+            .from("pin_images")
+            .select("id, pin_id, photo_path, photo_taken_at, created_at")
+            .in("pin_id", pinIds)
+            .order("photo_taken_at", { ascending: false });
+          if (pinPhotosErr) throw pinPhotosErr;
+          pinPhotoRows = (pinPhotos ?? []) as DBPinPhotoVersion[];
+        }
+
         // Cache to IndexedDB
         await cacheJobs(jobRows);
         await cacheFloors(floorRows);
         await cachePins(pinRows);
+        await cachePinPhotoVersions(pinPhotoRows);
       } else {
         // Offline — load from IndexedDB
         jobRows = await getCachedJobs();
@@ -267,6 +284,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           for (const f of floors) {
             const pins = await getCachedPinsByFloor(f.id);
             pinRows.push(...pins);
+            for (const p of pins) {
+              const versions = await getCachedPinPhotoVersions(p.id);
+              pinPhotoRows.push(...versions);
+            }
           }
         }
       }
@@ -284,11 +305,15 @@ export const useAppStore = create<AppState>((set, get) => ({
           });
         }
 
-        const photoPaths = pinRows
+        const latestPinPhotoPaths = pinRows
           .map((p) => normalizePinPhotoPath(p.photo_path))
           .filter((path): path is string => Boolean(path));
-        if (photoPaths.length > 0) {
-          const { data: signedPhotos } = await supabase.storage.from("pin-photos").createSignedUrls(photoPaths, 3600);
+        const historyPhotoPaths = pinPhotoRows
+          .map((p) => normalizePinPhotoPath(p.photo_path))
+          .filter((path): path is string => Boolean(path));
+        const uniquePhotoPaths = [...new Set([...latestPinPhotoPaths, ...historyPhotoPaths])];
+        if (uniquePhotoPaths.length > 0) {
+          const { data: signedPhotos } = await supabase.storage.from("pin-photos").createSignedUrls(uniquePhotoPaths, 3600);
           signedPhotos?.forEach((item) => {
             if (!item.error && item.signedUrl) photoUrlMap.set(item.path, item.signedUrl);
           });
@@ -361,6 +386,21 @@ export const useAppStore = create<AppState>((set, get) => ({
                       const remoteUrl = normalizedPhotoPath
                         ? photoUrlMap.get(normalizedPhotoPath)
                         : undefined;
+                      const photoHistory: PinPhotoVersion[] = pinPhotoRows
+                        .filter((v) => v.pin_id === p.id)
+                        .sort(
+                          (a, b) =>
+                            new Date(b.photo_taken_at).getTime() -
+                            new Date(a.photo_taken_at).getTime()
+                        )
+                        .map((v) => ({
+                          id: v.id,
+                          pinId: v.pin_id,
+                          photoUrl: photoUrlMap.get(v.photo_path) ?? "",
+                          capturedAt: v.photo_taken_at,
+                        }))
+                        .filter((v) => Boolean(v.photoUrl));
+
                       return {
                         id: p.id,
                         name: p.name,
@@ -369,6 +409,7 @@ export const useAppStore = create<AppState>((set, get) => ({
                         photoUrl: localBlob ? URL.createObjectURL(localBlob) : remoteUrl,
                         notes: p.note ?? undefined,
                         capturedAt: p.photo_taken_at ?? undefined,
+                        photos: photoHistory,
                       };
                     })
                 ),
@@ -430,6 +471,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           const assembledPins = [];
           for (const p of pins) {
             const blob = await getCachedPinPhoto(p.id);
+            const versions = await getCachedPinPhotoVersions(p.id);
             assembledPins.push({
               id: p.id,
               name: p.name,
@@ -438,6 +480,12 @@ export const useAppStore = create<AppState>((set, get) => ({
               photoUrl: blob ? URL.createObjectURL(blob) : undefined,
               notes: p.note ?? undefined,
               capturedAt: p.photo_taken_at ?? undefined,
+              photos: versions.map((v) => ({
+                id: v.id,
+                pinId: v.pin_id,
+                photoUrl: v.photo_path,
+                capturedAt: v.photo_taken_at,
+              })),
             });
           }
           const cachedPdf = await getCachedFloorPdf(f.id);
@@ -803,7 +851,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   uploadPinPhoto: async (jobId, floorId, pinId, file) => {
-    const filePath = `${jobId}/${floorId}/${pinId}.jpg`;
+    const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
+    const safeExt = (extension || "jpg").toLowerCase();
+    const photoId = uid("photo");
+    const filePath = `${jobId}/${floorId}/${pinId}/${Date.now()}-${photoId}.${safeExt}`;
     const now = new Date().toISOString();
     
     // 1. Immediate UI Update (using local blob URL)
@@ -816,7 +867,22 @@ export const useAppStore = create<AppState>((set, get) => ({
             f.id !== floorId ? f : {
               ...f,
               pins: f.pins.map((p) =>
-                p.id === pinId ? { ...p, photoUrl: previewUrl, capturedAt: now } : p
+                p.id === pinId
+                  ? {
+                      ...p,
+                      photoUrl: previewUrl,
+                      capturedAt: now,
+                      photos: [
+                        {
+                          id: photoId,
+                          pinId,
+                          photoUrl: previewUrl,
+                          capturedAt: now,
+                        },
+                        ...(p.photos ?? []),
+                      ],
+                    }
+                  : p
               ),
             }
           ),
@@ -827,6 +893,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 2. Persist to local DB
     await updatePinPhotoLocal(pinId, filePath, now);
     await cachePinPhoto(pinId, file);
+    await cachePinPhotoVersion({
+      id: photoId,
+      pin_id: pinId,
+      photo_path: filePath,
+      photo_taken_at: now,
+      created_at: now,
+    });
 
     // 3. Attempt Sync or Queue
     const sync = async () => {
@@ -848,13 +921,29 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         if (updateErr) throw updateErr;
         if (!updatedPin) throw new Error("Pin row not found while updating photo metadata");
+
+        const { error: imageErr } = await supabase.from("pin_images").insert({
+          id: photoId,
+          pin_id: pinId,
+          photo_path: filePath,
+          photo_taken_at: now,
+        });
+        if (imageErr) throw imageErr;
           
       } catch (err) {
         console.log("[SiteDocHB] Upload failed or offline, queuing...", err);
         await addToQueue({
           type: "photo_upload",
           maxRetries: 5,
-          payload: { pinId, floorId, jobId, photoBlob: file, storagePath: filePath, photoTakenAt: now },
+          payload: {
+            pinId,
+            floorId,
+            jobId,
+            photoBlob: file,
+            storagePath: filePath,
+            photoTakenAt: now,
+            photoId,
+          },
         });
       }
     };
@@ -877,6 +966,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // 2. Local DB
     deletePinLocal(pinId);
+    deletePinPhotoVersionsByPin(pinId);
     if (get().selectedPinId === pinId) safeSet(LS_KEYS.selectedPinId, "");
 
     // 3. Supabase/Queue
