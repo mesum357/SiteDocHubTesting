@@ -118,7 +118,7 @@ export default function Login() {
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={loading}>
+          <Button type="submit" className="w-full bg-accent text-accent-foreground hover:bg-accent/90" disabled={loading}>
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Sign In
           </Button>
