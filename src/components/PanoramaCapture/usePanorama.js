@@ -38,6 +38,13 @@ const dataUrlToBlob = async (dataUrl) => {
   return response.blob();
 };
 
+const isMobileDevice = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const coarsePointer = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)")?.matches;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || Boolean(coarsePointer);
+};
+
 const blendOverlap = (previousFrame, currentFrame, overlap, frameHeight) => {
   const overlapCanvas = document.createElement("canvas");
   overlapCanvas.width = overlap;
@@ -153,10 +160,22 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      });
+      const mobileDevice = isMobileDevice();
+      const preferredVideoConstraints = mobileDevice ? { facingMode: { ideal: "environment" } } : true;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: preferredVideoConstraints,
+          audio: false,
+        });
+      } catch (primaryError) {
+        // Some phones reject facingMode hints; retry with any available camera.
+        if (!mobileDevice) throw primaryError;
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+      }
       streamRef.current = stream;
       pendingPlayRef.current = true;
     } catch (cameraError) {
