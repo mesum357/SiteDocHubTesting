@@ -3,7 +3,6 @@ import { Camera, Check, Copy, Maximize, Pencil, Trash2, Upload, X } from "lucide
 import { useActiveFloor, useActiveJob, useAppStore, useSelectedPin } from "@/store/useAppStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { canPerform } from "@/lib/permissions";
-import { useInsta360 } from "@/hooks/useInsta360";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import PanoramaViewer from "./PanoramaViewer";
 import { useCachedPinPhotoUrl } from "@/hooks/useCachedPinPhotoUrl";
+import PanoramaCapture from "@/components/PanoramaCapture";
 
 interface Props {
   tabletOverlay?: boolean;
@@ -44,22 +44,11 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
   const uploadPinPhoto = useAppStore((s) => s.uploadPinPhoto);
   const role = useAuthStore((s) => s.role);
 
-  const {
-    connected: cameraConnected,
-    capturing: cameraCapturing,
-    triggerCapture,
-    batteryPercent,
-    storageFreeMb,
-    connectionExplainer,
-  } = useInsta360();
-
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const [notesFocused, setNotesFocused] = useState(false);
-  const [capturing, setCapturing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [captureErrorMsg, setCaptureErrorMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -83,35 +72,13 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
     ? `${new Date(pin.capturedAt ?? Date.now()).toISOString().slice(2,10).replace(/-/g, "-")}-${slugify(job.name)}-${slugify(pin.name)}.insp`
     : "";
 
-  const handleCapture = async () => {
-    if (!pin || !floor || !job) return;
-
-    if (!cameraConnected) {
-      const msg = "Insta360 not connected. Connect camera WiFi first.";
-      setCaptureErrorMsg(msg);
-      toast.error(msg);
-      return;
-    }
-
-    setCapturing(true);
-    setCaptureErrorMsg(null);
-
-    const blob = await triggerCapture();
-    if (blob) {
-      // Upload to Supabase Storage
-      try {
-        const file = new File([blob], `capture-${Date.now()}.jpg`, { type: "image/jpeg" });
-        await uploadPinPhoto(job.id, floor.id, pin.id, file);
-        toast.success(`Photo saved to ${pin.name}`);
-      } catch {
-        toast.error("Failed to upload captured photo");
-      }
-    } else {
-      const msg = "Camera capture failed. Check camera connection and try again.";
-      setCaptureErrorMsg(msg);
-      toast.error(msg);
-    }
-    setCapturing(false);
+  const handlePanoramaUploadBlob = async (blob: Blob): Promise<string> => {
+    if (!pin || !floor || !job) throw new Error("Pin context missing");
+    const file = new File([blob], `panorama-${Date.now()}.jpg`, { type: "image/jpeg" });
+    await uploadPinPhoto(job.id, floor.id, pin.id, file);
+    toast.success(`Panorama saved to ${pin.name}`);
+    // Store-managed image uses local object URL first, then syncs to remote storage.
+    return URL.createObjectURL(blob);
   };
 
   const handleFile = async (file: File) => {
@@ -220,53 +187,12 @@ const PinDetailPanel = ({ tabletOverlay = false }: Props) => {
 
           {/* Camera CTA */}
           <div>
-            <button
-              onClick={handleCapture}
-              disabled={capturing || cameraCapturing}
-              className={cn(
-                "lift-on-hover flex h-12 w-full items-center justify-center gap-2 rounded-md font-display text-sm transition-all active:scale-[0.98]",
-                cameraConnected
-                  ? "bg-accent text-accent-foreground"
-                  : "border border-accent bg-transparent text-accent hover:bg-accent-soft",
-                (capturing || cameraCapturing) && "opacity-80",
-              )}
-              title={cameraConnected ? "" : "Connect phone to camera Wi‑Fi; use dev/preview server so /api/camera can reach the camera."}
-            >
-              {(capturing || cameraCapturing) ? (
-                <><span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" /> Triggering shutter…</>
-              ) : (
-                <>📷 Capture with Insta360</>
-              )}
-            </button>
-            {/* Connection status — web apps cannot read Wi‑Fi SSID; OSC reachability = "camera network" */}
-            <div className="mt-1.5 flex flex-col items-center gap-0.5">
-              <div className="flex items-center justify-center gap-1.5">
-                <span className={cn("h-2 w-2 rounded-full", cameraConnected ? "bg-ok" : "bg-danger")} />
-                <span className={cn("text-[11px] font-medium", cameraConnected ? "text-ok" : "text-danger")}>
-                  {cameraConnected ? "Connected" : "Disconnected"}
-                </span>
-              </div>
-              {cameraConnected && (
-                <span className="text-center text-[10px] text-ink-secondary">
-                  Insta360 · camera network (OSC)
-                </span>
-              )}
-            </div>
-            <div className="mt-1 text-center text-[10px] text-ink-secondary leading-snug">
-              {cameraConnected ? (
-                <>
-                  {batteryPercent !== null ? `Battery ${Math.round(batteryPercent)}%` : "Battery —"} ·{" "}
-                  {storageFreeMb !== null ? `${Math.round(storageFreeMb)}MB free` : "Storage —"}
-                </>
-              ) : (
-                connectionExplainer
-              )}
-            </div>
-            {captureErrorMsg && (
-              <div className="mt-1 text-center text-[10px] font-medium text-danger">
-                {captureErrorMsg}
-              </div>
-            )}
+            <PanoramaCapture
+              onUploadBlob={handlePanoramaUploadBlob}
+              onUploadSuccess={() => {
+                // Keep callback available for parent integration if needed.
+              }}
+            />
           </div>
 
           {/* Upload button */}
