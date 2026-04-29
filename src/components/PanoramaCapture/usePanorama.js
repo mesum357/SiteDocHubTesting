@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const SWEEP_TARGET_DEG = 120;
-const CAPTURE_STEP_DEG = 15;
-const MIN_CAPTURED_FRAMES = 5;
+const CAPTURE_STEP_DEG = 12;
+const MIN_CAPTURED_FRAMES = 4;
+const MIN_SWEEP_DEG_FOR_STITCH = 40;
 const OVERLAP_PX = 20;
 
 const normalizeAngle = (value) => {
@@ -90,6 +91,7 @@ const blendOverlap = (previousFrame, currentFrame, overlap, frameHeight) => {
 export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/api/upload-panorama" } = {}) => {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const pendingPlayRef = useRef(false);
   const sweepRef = useRef({
     active: false,
     startHeading: null,
@@ -134,7 +136,10 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
   }, []);
 
   const ensureCamera = useCallback(async () => {
-    if (streamRef.current) return;
+    if (streamRef.current) {
+      pendingPlayRef.current = true;
+      return;
+    }
     if (!navigator?.mediaDevices?.getUserMedia) {
       setError("Camera API is unavailable in this browser context. On iPhone, open this app in Safari over HTTPS.");
       setState("error");
@@ -153,10 +158,7 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      pendingPlayRef.current = true;
     } catch (cameraError) {
       let message = "Camera access denied. Please allow rear camera access and try again.";
       // iPhone Safari commonly throws NotAllowedError for both explicit deny and site-level block.
@@ -202,7 +204,7 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
 
   const captureFrame = useCallback(() => {
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return false;
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return false;
 
     const frameCanvas = document.createElement("canvas");
     frameCanvas.width = video.videoWidth;
@@ -271,8 +273,8 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
   const finishSweep = useCallback(() => {
     sweepRef.current.active = false;
 
-    if (framesRef.current.length < MIN_CAPTURED_FRAMES) {
-      setError("Sweep too fast. Capture at least 5 frames by moving more slowly.");
+    if (framesRef.current.length < MIN_CAPTURED_FRAMES || sweptDeg < MIN_SWEEP_DEG_FOR_STITCH) {
+      setError("Sweep was too short for a stable panorama. Move more slowly and cover a wider angle before tapping Done.");
       setState("error");
       return;
     }
@@ -286,7 +288,35 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
       setError("Failed to export panorama image. Please try again.");
       setState("error");
     }
-  }, [stitchFrames]);
+  }, [stitchFrames, sweptDeg]);
+
+  const waitForVideoReady = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return false;
+    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) return true;
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", onReady);
+        video.removeEventListener("canplay", onReady);
+      };
+      const onReady = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(true);
+      };
+      video.addEventListener("loadedmetadata", onReady);
+      video.addEventListener("canplay", onReady);
+      window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0);
+      }, 2000);
+    });
+  }, []);
 
   const startSweep = useCallback(async () => {
     setError("");
@@ -300,6 +330,12 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
         resetSweep();
         sweepRef.current.active = true;
         setState("sweeping");
+        const ready = await waitForVideoReady();
+        if (!ready) {
+          setError("Camera preview could not start. Please wait a moment and try again.");
+          setState("error");
+          return;
+        }
         captureFrame();
         return;
       }
@@ -311,8 +347,14 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
     setState("sweeping");
 
     // Capture initial anchor frame at 0° so stitching has a start image.
+    const ready = await waitForVideoReady();
+    if (!ready) {
+      setError("Camera preview could not start. Please wait a moment and try again.");
+      setState("error");
+      return;
+    }
     captureFrame();
-  }, [captureFrame, ensureCamera, motionPermissionGranted, requestMotionPermission, resetSweep]);
+  }, [captureFrame, ensureCamera, motionPermissionGranted, requestMotionPermission, resetSweep, waitForVideoReady]);
 
   const doneEarly = useCallback(() => {
     if (state === "sweeping") finishSweep();
@@ -376,6 +418,21 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
   }, [resetSweep]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    if (pendingPlayRef.current) {
+      pendingPlayRef.current = false;
+      void video.play().catch(() => {
+        pendingPlayRef.current = true;
+      });
+    }
+  }, [state]);
+
+  useEffect(() => {
     if (!supportsDeviceOrientation) return undefined;
 
     const orientationType = window.DeviceOrientationEvent;
@@ -398,7 +455,7 @@ export const usePanorama = ({ onUploadSuccess, onUploadBlob, uploadEndpoint = "/
       const swept = Math.abs(shortestAngularDistance(sweep.startHeading, heading));
       setSweptDeg(Math.min(SWEEP_TARGET_DEG, Math.round(swept)));
 
-      if (swept >= sweep.nextCaptureDeg - 1) {
+      if (swept >= sweep.nextCaptureDeg) {
         const captured = captureFrame();
         if (captured) {
           sweep.lastCapturedSweepDeg = swept;

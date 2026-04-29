@@ -29,12 +29,17 @@ export default function PanoramaCapture({ onUploadSuccess, onUploadBlob, uploadE
     uploadEndpoint,
   });
 
-  if (!supportsDeviceOrientation) {
+  if (!supportsDeviceOrientation && !manualSweepMode) {
     return (
       <div className={styles.root}>
-        <p className={`${styles.status} ${styles.error}`}>
-          Device motion is not supported on this browser/device.
+        <p className={styles.instruction}>
+          Motion sensors are unavailable on this device/browser. You can still capture a panorama manually.
         </p>
+        <div className={styles.actions}>
+          <button type="button" className={styles.primaryButton} onClick={startSweep}>
+            Start Manual Sweep
+          </button>
+        </div>
       </div>
     );
   }
